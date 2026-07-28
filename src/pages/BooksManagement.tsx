@@ -274,15 +274,14 @@ export default function BooksManagement() {
     return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
   };
 
-  const exportAutoArrangeWord = () => {
+    const exportAutoArrangeWord = () => {
     if (!arrangementData) return;
     const weeksData = arrangementData.weeklyArrangements;
     const studentsData = weeksData[0].items.map((it: any) => it.student);
     
-    // Vertical text using <br> for cross-compatibility
+    // Vertical text using <br>
     const titleChars = `${arrangementData.academicYear}班級圖書借閱登記表 小熊班`.split('');
     const verticalTitle = titleChars.map(c => c === ' ' ? '<br><br>' : c).join('<br>');
-    const rowspan = studentsData.length + 1;
 
     let htmlContent = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
@@ -291,35 +290,55 @@ export default function BooksManagement() {
       <title>圖書借閱登記表</title>
       <style>
         body { font-family: "Microsoft JhengHei", "標楷體", sans-serif; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; text-align: center; }
-        th, td { border: 1px solid black; padding: 6px; font-size: 14px; }
-        .class-title { font-size: 20px; font-weight: bold; width: 40px; vertical-align: top; padding-top: 10px; line-height: 1.2; }
+        .grid-table { width: 100%; border-collapse: collapse; text-align: center; }
+        .grid-table th, .grid-table td { border: 1px solid black; padding: 6px 4px; font-size: 16px; }
+        .grid-table th { background-color: #ffffff; font-weight: normal; }
+        .title-table { border-collapse: collapse; width: 100%; }
+        .title-table td { border: 1px solid black; text-align: center; }
+        .vertical-title { font-size: 24px; padding: 15px 5px; line-height: 1.1; }
         @page { size: A4 landscape; margin: 1.5cm; }
       </style>
     </head>
     <body>
     `;
 
-    // Process in pairs of weeks (Week N and Week N+1 per page)
     for (let w = 0; w < weeksData.length; w += 2) {
-      const pageBreak = w > 0 ? '<div style="page-break-before: always;"></div><br clear="all" style="page-break-before:always; mso-break-type:page-break" />' : '';
+      const pageBreak = w > 0 ? '<br clear="all" style="page-break-before:always; mso-break-type:page-break" />' : '';
       const w1 = weeksData[w];
-      const w2 = weeksData[w + 1]; // Might be undefined if odd number of weeks
+      const w2 = weeksData[w + 1];
       
       const d1 = getPrintDate(w1.weekIndex);
       const d2 = w2 ? getPrintDate(w2.weekIndex) : '';
 
       htmlContent += `
         ${pageBreak}
-        <table>
+        <table style="width: 100%; border: none; border-collapse: collapse;">
           <tr>
-            <td rowspan="${rowspan}" class="class-title">${verticalTitle}</td>
-            <th>編號</th>
-            <th>${d1} 書名</th>
-            <th>借閱者</th>
-            <th>還書日期</th>
-            ${w2 ? `<th>編號</th><th>${d2} 書名</th><th>借閱者</th><th>還書日期</th>` : `<th></th><th></th><th></th><th></th>`}
-          </tr>
+            <td style="width: 50px; vertical-align: top; border: none; padding-right: 15px;">
+              <table class="title-table">
+                <tr>
+                  <td class="vertical-title">${verticalTitle}</td>
+                </tr>
+                <tr><td style="height: 10px; border: none;"></td></tr>
+                <tr>
+                  <td style="padding: 10px 5px; height: 80px; font-size: 16px; vertical-align: top;">借<br>閱<br>日<br>期</td>
+                </tr>
+              </table>
+            </td>
+            <td style="vertical-align: top; border: none;">
+              <table class="grid-table">
+                <tr>
+                  <th style="width: 40px;">編<br>號</th>
+                  <th style="font-size: 18px;">${d1} 書名</th>
+                  <th style="width: 80px; font-size: 18px;">借閱者</th>
+                  <th style="width: 100px; font-size: 18px;">還書日期</th>
+                  ${w2 ? `
+                  <th style="width: 40px;">編<br>號</th>
+                  <th style="font-size: 18px;">${d2} 書名</th>
+                  <th style="width: 80px; font-size: 18px;">借閱者</th>
+                  <th style="width: 100px; font-size: 18px;">還書日期</th>
+                  ` : `<th></th><th></th><th></th><th></th>`}
+                </tr>
       `;
 
       studentsData.forEach((st: any, idx: number) => {
@@ -328,21 +347,26 @@ export default function BooksManagement() {
 
         htmlContent += `
           <tr>
-            <td>${item1.book?.bookNo || ''}</td>
+            <td style="font-size: 18px;">${idx + 1}</td>
             <td style="text-align: left;">${item1.book?.title || ''}</td>
-            <td>${st.name}</td>
+            <td style="font-size: 18px;">${st.name}</td>
             <td></td>
             ${item2 ? `
-              <td>${item2.book?.bookNo || ''}</td>
+              <td style="font-size: 18px;">${idx + 1}</td>
               <td style="text-align: left;">${item2.book?.title || ''}</td>
-              <td>${st.name}</td>
+              <td style="font-size: 18px;">${st.name}</td>
               <td></td>
             ` : `<td></td><td></td><td></td><td></td>`}
           </tr>
         `;
       });
 
-      htmlContent += `</table>`;
+      htmlContent += `
+              </table>
+            </td>
+          </tr>
+        </table>
+      `;
     }
 
     htmlContent += `</body></html>`;
@@ -466,6 +490,15 @@ export default function BooksManagement() {
                 總館藏: <span className="font-bold text-yellow-300">{books.length}</span> 本 | 符合條件: <span className="font-bold text-yellow-300">{filteredBooks.length}</span> 筆
               </span>
             </h2>
+            <div className="mb-4">
+              <Pagination 
+                total={filteredBooks.length} 
+                current={currentPage} 
+                pageSize={pageSize} 
+                onPageChange={setCurrentPage} 
+                onPageSizeChange={setPageSize} 
+              />
+            </div>
             <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
                 <tr className="border-b-2 border-white/50 bg-black/20">
@@ -546,6 +579,15 @@ export default function BooksManagement() {
               <label className="block text-yellow-200 mb-2 font-bold text-lg">
                 5. 勾選欲參與輪替的書籍 ({selectedBooks.size} / {books.length})
               </label>
+              <div className="mb-2">
+                <Pagination 
+                  total={books.length} 
+                  current={autoCurrentPage} 
+                  pageSize={autoPageSize} 
+                  onPageChange={setAutoCurrentPage} 
+                  onPageSizeChange={setAutoPageSize} 
+                />
+              </div>
               <div className="border border-white/20 rounded bg-black/20 overflow-hidden">
                 <table className="w-full text-left border-collapse">
                   <thead>
