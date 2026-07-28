@@ -105,6 +105,7 @@ export default function TeachersManagement() {
     <div className="max-w-[1200px] mx-auto animate-fade-in space-y-8">
       <ConfirmModal 
         isOpen={showConfirm}
+        title="確認刪除"
         message={confirmMessage}
         onConfirm={confirmAction}
         onCancel={() => setShowConfirm(false)}

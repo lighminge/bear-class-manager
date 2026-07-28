@@ -1,4 +1,4 @@
-import { Map, Calendar, BookOpen, Users, Target, PhoneCall, UserCheck } from 'lucide-react';
+import { Map, Calendar, BookOpen, Users, Target, UserCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
@@ -15,11 +15,7 @@ export default function Home() {
   const navigate = useNavigate();
 
   const handleNav = (mod: typeof modules[0]) => {
-    if (mod.external && mod.url) {
-      window.open(mod.url, '_blank');
-    } else {
-      navigate(`/${mod.id}`);
-    }
+    navigate(`/${mod.id}`);
   };
 
   return (

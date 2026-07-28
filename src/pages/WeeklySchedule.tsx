@@ -88,7 +88,7 @@ export default function WeeklySchedule() {
     });
 
     const unsubSettings = onSnapshot(doc(db, 'bear_settings', 'main'), (snap) => {
-      if (snap.exists()) setSettings(prev => ({ ...prev, ...snap.data() }));
+      if (snap.exists()) setSettings((prev: any) => ({ ...prev, ...snap.data() }));
     });
 
     const unsubAnnual = onSnapshot(collection(db, 'bear_annualEvents'), (snap) => {
