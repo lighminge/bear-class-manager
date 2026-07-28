@@ -2,22 +2,36 @@ import { useState, useEffect } from 'react';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserCheck, Save, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { collection } from 'firebase/firestore';
 
 export default function TeacherLeaves() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [leaves, setLeaves] = useState<Record<string, string>>({}); // { '2024-09-02': 'teacherA' }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [teachers, setTeachers] = useState({ lead: '', co: '' });
+  const [teachers, setTeachers] = useState<{ id: string; name: string }[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState('');
+  const [colors, setColors] = useState<Record<string, { bg: string; text: string }>>({});
 
   useEffect(() => {
-    const unsubSettings = onSnapshot(doc(db, 'bear_settings', 'main'), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setTeachers({ lead: data.leadTeacher || '主教', co: data.coTeacher || '協同' });
-        setSelectedTeacher(data.leadTeacher || '主教');
+    const unsubTeachers = onSnapshot(collection(db, 'bear_teachers'), (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, name: d.data().name }));
+      setTeachers(data);
+      if (data.length > 0 && !selectedTeacher) {
+        setSelectedTeacher(data[0].name);
       }
+      
+      const presetColors = [
+        { bg: 'bg-purple-600 border-purple-400', text: 'text-purple-300' },
+        { bg: 'bg-blue-600 border-blue-400', text: 'text-blue-300' },
+        { bg: 'bg-pink-600 border-pink-400', text: 'text-pink-300' },
+        { bg: 'bg-teal-600 border-teal-400', text: 'text-teal-300' }
+      ];
+      const newColors: Record<string, { bg: string; text: string }> = {};
+      data.forEach((t, i) => {
+        newColors[t.name] = presetColors[i % presetColors.length];
+      });
+      setColors(newColors);
     });
 
     const unsubLeaves = onSnapshot(doc(db, 'bear_teacherLeaves', 'all'), (snap) => {
@@ -30,7 +44,7 @@ export default function TeacherLeaves() {
     });
 
     return () => {
-      unsubSettings();
+      unsubTeachers();
       unsubLeaves();
     };
   }, []);
@@ -76,22 +90,19 @@ export default function TeacherLeaves() {
     <div className="p-4 h-full flex flex-col bg-[#2b5b3f]/95 text-white">
       <div className="flex items-center gap-3 mb-4 border-b border-white/20 pb-4">
         <UserCheck className="w-6 h-6 text-yellow-300" />
-        <h2 className="text-xl font-bold tracking-wider">老師請假</h2>
+        <h2 className="text-xl font-bold tracking-wider">老師請假管理</h2>
       </div>
 
-      <div className="flex gap-2 mb-4">
-        <button 
-          onClick={() => setSelectedTeacher(teachers.lead)}
-          className={`flex-1 py-1 rounded border-2 font-bold ${selectedTeacher === teachers.lead ? 'bg-purple-600 border-purple-400' : 'bg-transparent border-white/20 text-white/50'}`}
-        >
-          {teachers.lead}
-        </button>
-        <button 
-          onClick={() => setSelectedTeacher(teachers.co)}
-          className={`flex-1 py-1 rounded border-2 font-bold ${selectedTeacher === teachers.co ? 'bg-blue-600 border-blue-400' : 'bg-transparent border-white/20 text-white/50'}`}
-        >
-          {teachers.co}
-        </button>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {teachers.map(t => (
+          <button 
+            key={t.id}
+            onClick={() => setSelectedTeacher(t.name)}
+            className={`flex-1 py-1 px-2 rounded border-2 font-bold whitespace-nowrap ${selectedTeacher === t.name ? (colors[t.name]?.bg || 'bg-yellow-600 border-yellow-400') : 'bg-transparent border-white/20 text-white/50'}`}
+          >
+            {t.name}
+          </button>
+        ))}
       </div>
 
       <div className="flex justify-between items-center mb-2">
@@ -116,9 +127,13 @@ export default function TeacherLeaves() {
               const teacherOnLeave = leaves[dateStr];
               
               let bg = 'bg-black/20 hover:bg-white/20';
-              if (teacherOnLeave === teachers.lead) bg = 'bg-purple-600 border-purple-400 border-2 font-bold';
-              else if (teacherOnLeave === teachers.co) bg = 'bg-blue-600 border-blue-400 border-2 font-bold';
-              else if (isT) bg = 'bg-black/20 border-yellow-500 border-2 text-yellow-300 font-bold';
+              if (teacherOnLeave && colors[teacherOnLeave]) {
+                bg = `${colors[teacherOnLeave].bg} border-2 font-bold`;
+              } else if (teacherOnLeave) {
+                bg = 'bg-gray-600 border-gray-400 border-2 font-bold';
+              } else if (isT) {
+                bg = 'bg-black/20 border-yellow-500 border-2 text-yellow-300 font-bold';
+              }
 
               return (
                 <button

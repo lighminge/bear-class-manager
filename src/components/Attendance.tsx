@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, onSnapshot, setDoc, collection } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Users, Save, Loader2 } from 'lucide-react';
+import { Users, Save, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function Attendance() {
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -73,27 +73,47 @@ export default function Attendance() {
   const statusOptions = [
     { value: 'attend', label: '出席', color: 'bg-green-500/20 text-green-300 border-green-500' },
     { value: 'leave', label: '事假', color: 'bg-blue-500/20 text-blue-300 border-blue-500' },
-    { value: 'sick', label: '病假', color: 'bg-orange-500/20 text-orange-300 border-orange-500' },
-    { value: 'unexcused', label: '曠課', color: 'bg-red-500/20 text-red-300 border-red-500' }
+    { value: 'sick', label: '病假', color: 'bg-orange-500/20 text-orange-300 border-orange-500' }
   ];
+
+  const changeDate = (days: number) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    setDate(d.toISOString().split('T')[0]);
+  };
+
+  const totalStudents = students.length;
+  const presentCount = students.filter(s => (attendance[s.id]?.status || 'attend') === 'attend').length;
+  const absentCount = students.filter(s => {
+    const st = attendance[s.id]?.status;
+    return st === 'leave' || st === 'sick';
+  }).length;
 
   return (
     <div className="p-4 h-full flex flex-col bg-[#2b5b3f]/95 text-white">
-      <div className="flex items-center gap-3 mb-6 border-b border-white/20 pb-4">
+      <div className="flex items-center gap-3 mb-4 border-b border-white/20 pb-4">
         <Users className="w-6 h-6 text-yellow-300" />
-        <h2 className="text-xl font-bold tracking-wider">點名簿</h2>
+        <h2 className="text-xl font-bold tracking-wider drop-shadow-md">點名簿</h2>
       </div>
 
-      <div className="flex gap-2 mb-4">
-        <select value={year} onChange={e => setYear(e.target.value)} className="chalk-input flex-1 bg-white/10 rounded px-2">
+      <div className="flex justify-between text-sm mb-4 text-yellow-100 bg-black/20 p-2 rounded">
+        <span>應到: <span className="font-bold text-yellow-300 text-lg">{totalStudents}</span></span>
+        <span>出席: <span className="font-bold text-green-300 text-lg">{presentCount}</span></span>
+        <span>請假: <span className="font-bold text-orange-300 text-lg">{absentCount}</span></span>
+      </div>
+
+      <div className="flex gap-2 mb-4 items-center">
+        <select value={year} onChange={e => setYear(e.target.value)} className="chalk-input bg-black/50 text-white rounded px-2 py-1 w-24">
           {['112', '113', '114', '115'].map(y => <option key={y} value={y}>{y}學年</option>)}
         </select>
+        <button onClick={() => changeDate(-1)} className="p-1 hover:bg-white/20 rounded"><ChevronLeft className="w-5 h-5" /></button>
         <input 
           type="date" 
           value={date} 
           onChange={e => setDate(e.target.value)} 
-          className="chalk-input flex-2 bg-white/10 rounded px-2 text-center"
+          className="chalk-input flex-1 bg-white text-black rounded px-2 py-1 text-center font-bold"
         />
+        <button onClick={() => changeDate(1)} className="p-1 hover:bg-white/20 rounded"><ChevronRight className="w-5 h-5" /></button>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">

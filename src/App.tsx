@@ -10,6 +10,8 @@ import AnnualCalendar from './pages/AnnualCalendar';
 import Indicators from './pages/Indicators';
 import WeeklySchedule from './pages/WeeklySchedule';
 
+import TeachersManagement from './pages/TeachersManagement';
+
 function App() {
   const [loading, setLoading] = useState(true);
 
@@ -59,6 +61,7 @@ function App() {
             <Route path="/indicators" element={<Indicators />} />
             <Route path="/students" element={<StudentsManagement />} />
             <Route path="/books" element={<BooksManagement />} />
+            <Route path="/teachers" element={<TeachersManagement />} />
             {/* 其他頁面陸續加入 */}
           </Routes>
         </main>

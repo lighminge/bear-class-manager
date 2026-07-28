@@ -25,38 +25,52 @@ interface Student {
 }
 
 // Pagination Helper Component
-function Pagination({ total, current, pageSize, onPageChange, onPageSizeChange }: any) {
+function Pagination({ total, current, pageSize, onPageChange, onPageSizeChange, showPageSizeSelect = true }: any) {
   const pages = Math.ceil(total / pageSize);
   if (total === 0) return null;
 
   return (
     <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4 bg-black/20 p-2 rounded">
       <div className="flex items-center gap-2">
-        <span className="text-sm">共 {total} 筆，每頁顯示</span>
-        <select 
-          value={pageSize} 
-          onChange={e => { onPageSizeChange(Number(e.target.value)); onPageChange(1); }}
-          className="chalk-input bg-white text-black py-0.5 px-2 font-bold rounded"
-        >
-          <option value="10">10</option>
-          <option value="20">20</option>
-          <option value="30">30</option>
-          <option value="999">全部</option>
-        </select>
-        <span className="text-sm">筆</span>
+        <span className="text-sm">共 {total} 筆{showPageSizeSelect && '，每頁顯示'}</span>
+        {showPageSizeSelect && (
+          <>
+            <select 
+              value={pageSize} 
+              onChange={e => { onPageSizeChange(Number(e.target.value)); onPageChange(1); }}
+              className="chalk-input bg-white text-black py-0.5 px-2 font-bold rounded"
+            >
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="30">30</option>
+              <option value="999">全部</option>
+            </select>
+            <span className="text-sm">筆</span>
+          </>
+        )}
       </div>
       <div className="flex gap-2">
+        <button 
+          disabled={current === 1}
+          onClick={() => onPageChange(1)}
+          className="chalk-btn py-1 px-3 text-sm disabled:opacity-50"
+        >最前頁</button>
         <button 
           disabled={current === 1}
           onClick={() => onPageChange(current - 1)}
           className="chalk-btn py-1 px-3 text-sm disabled:opacity-50"
         >上一頁</button>
-        <span className="text-sm self-center">第 {current} / {pages} 頁</span>
+        <span className="text-sm self-center font-bold text-yellow-300">第 {current} / {pages} 頁</span>
         <button 
           disabled={current === pages}
           onClick={() => onPageChange(current + 1)}
           className="chalk-btn py-1 px-3 text-sm disabled:opacity-50"
         >下一頁</button>
+        <button 
+          disabled={current === pages}
+          onClick={() => onPageChange(pages)}
+          className="chalk-btn py-1 px-3 text-sm disabled:opacity-50"
+        >最後頁</button>
       </div>
     </div>
   );
@@ -104,6 +118,9 @@ export default function BooksManagement() {
   
   const [autoCurrentPage, setAutoCurrentPage] = useState(1);
   const [autoPageSize, setAutoPageSize] = useState(10);
+  const [resultPage, setResultPage] = useState(1);
+  const [importWeekIdx, setImportWeekIdx] = useState('0');
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     const unsubBooks = onSnapshot(collection(db, 'bear_books'), (snapshot) => {
@@ -410,6 +427,44 @@ export default function BooksManagement() {
     setShowConfirm(true);
   };
 
+  const handleImportAutoArrange = () => {
+    if (!arrangementData || !arrangementData.weeklyArrangements) return alert('沒有自動安排的資料可匯入！');
+    const weekData = arrangementData.weeklyArrangements[Number(importWeekIdx)];
+    if (!weekData) return alert('找不到指定的週次！');
+
+    setConfirmMessage(`確定要匯入第 ${Number(importWeekIdx) + 1} 週的借閱資料嗎？這會先歸還目前所有借出的書籍，然後重新借出！`);
+    setConfirmAction(() => async () => {
+      setShowConfirm(false);
+      setImporting(true);
+      try {
+        const borrowedBooks = books.filter(b => b.isBorrowed === '是');
+        const returnPromises = borrowedBooks.map(b => updateDoc(doc(db, 'bear_books', b.id), {
+          isBorrowed: '否', borrower: '', borrowDate: '', returnDate: ''
+        }));
+        await Promise.all(returnPromises);
+
+        const borrowDateStr = getPrintDate(Number(importWeekIdx));
+        const checkoutPromises = weekData.items.map((it: any) => {
+          if (it.book && it.book.id) {
+            return updateDoc(doc(db, 'bear_books', it.book.id), {
+              isBorrowed: '是',
+              borrower: it.student.name,
+              borrowDate: borrowDateStr
+            });
+          }
+          return Promise.resolve();
+        });
+        await Promise.all(checkoutPromises);
+        alert('匯入完成！');
+      } catch (err) {
+        alert('匯入過程中發生錯誤');
+      } finally {
+        setImporting(false);
+      }
+    });
+    setShowConfirm(true);
+  };
+
   return (
     <div className="max-w-[1200px] mx-auto animate-fade-in space-y-6">
       <ConfirmModal 
@@ -517,9 +572,34 @@ export default function BooksManagement() {
             <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
                藏書清單
               <span className="text-sm font-normal bg-black/30 px-3 py-1 rounded-full shadow-inner ml-2">
-                總館藏: <span className="font-bold text-yellow-300">{books.length}</span> 本 | 符合條件: <span className="font-bold text-yellow-300">{filteredBooks.length}</span> 筆
+                總館藏: <span className="font-bold text-yellow-300">{books.length}</span> 本
+              </span>
+              <span className="text-sm font-normal bg-black/30 px-3 py-1 rounded-full shadow-inner ml-2">
+                已借閱: <span className="font-bold text-red-300">{books.filter(b => b.isBorrowed === '是').length}</span> 本
+              </span>
+              <span className="text-sm font-normal bg-black/30 px-3 py-1 rounded-full shadow-inner ml-2">
+                在館內: <span className="font-bold text-green-300">{books.filter(b => b.isBorrowed !== '是').length}</span> 本
               </span>
             </h2>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-black/20 p-3 rounded mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-yellow-200 text-sm font-bold">批次匯入自動排程結果：</span>
+                <select value={importWeekIdx} onChange={e => setImportWeekIdx(e.target.value)} className="chalk-input py-1 px-2 text-black bg-white">
+                  {arrangementData?.weeklyArrangements ? arrangementData.weeklyArrangements.map((w: any) => (
+                    <option key={w.weekIndex} value={w.weekIndex}>第 {w.weekIndex + 1} 週</option>
+                  )) : <option value="0">無排程資料</option>}
+                </select>
+                <button 
+                  onClick={handleImportAutoArrange}
+                  disabled={importing || !arrangementData}
+                  className="chalk-btn py-1 px-4 bg-blue-600 hover:bg-blue-500 shadow-md flex items-center gap-2"
+                >
+                  {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                  匯入借閱資料
+                </button>
+              </div>
+            </div>
             <div className="mb-4">
               <Pagination 
                 total={filteredBooks.length} 
@@ -534,26 +614,28 @@ export default function BooksManagement() {
                 <tr className="border-b-2 border-white/50 bg-black/20">
                   <th className="p-3 w-20 text-center text-yellow-100">編號</th>
                   <th className="p-3">書名</th>
-                  <th className="p-3 w-40">作者</th>
-                  <th className="p-3 w-32">狀態</th>
-                  <th className="p-3 w-32 text-center">操作</th>
+                  <th className="p-3 w-32">作者</th>
+                  <th className="p-3 w-24">狀態</th>
+                  <th className="p-3 w-24">借閱人員</th>
+                  <th className="p-3 w-24">借閱日</th>
+                  <th className="p-3 w-24 text-center">操作</th>
                 </tr>
               </thead>
               <tbody>
                 {pagedBooks.map(b => (
                   <tr key={b.id} className="border-b border-white/20 hover:bg-white/10">
                     <td className="p-3 text-center font-bold text-yellow-200">{b.bookNo}</td>
-                    <td className="p-3 font-bold">{b.title}</td>
-                    <td className="p-3 text-sm text-gray-300">{b.author}</td>
+                    <td className="p-3 font-bold truncate max-w-xs" title={b.title}>{b.title}</td>
+                    <td className="p-3 text-sm text-gray-300 truncate max-w-[100px]" title={b.author}>{b.author}</td>
                     <td className="p-3">
                       {b.isBorrowed === '是' ? (
-                        <div className="text-red-400 text-sm font-bold">
-                          已借出<br/><span className="text-xs font-normal text-red-300">{b.borrower}</span>
-                        </div>
+                        <span className="text-red-400 text-sm font-bold">已借出</span>
                       ) : (
                         <span className="text-green-400 font-bold">在館內</span>
                       )}
                     </td>
+                    <td className="p-3 text-yellow-100">{b.borrower}</td>
+                    <td className="p-3 text-sm opacity-80">{b.borrowDate}</td>
                     <td className="p-3 flex justify-center gap-2">
                       {b.isBorrowed === '是' && <button onClick={() => handleReturn(b.id)} className="bg-green-600/70 hover:bg-green-500 px-2 py-1 rounded text-xs border border-green-400 shadow">歸還</button>}
                       <button onClick={() => openEditModal(b)} className="text-yellow-300 hover:text-yellow-100 p-1 bg-black/20 rounded"><PenTool className="w-4 h-4" /></button>
@@ -689,7 +771,14 @@ export default function BooksManagement() {
 
               {viewMode === 'week' ? (
                 <div className="space-y-6">
-                  {arrangementData.weeklyArrangements.map((w: any) => (
+                  <Pagination 
+                    total={arrangementData.weeklyArrangements.length}
+                    current={resultPage}
+                    pageSize={1}
+                    onPageChange={setResultPage}
+                    showPageSizeSelect={false}
+                  />
+                  {arrangementData.weeklyArrangements.slice(resultPage - 1, resultPage).map((w: any) => (
                     <div key={w.weekIndex} className="bg-black/20 p-4 rounded-lg border border-white/20 hover:bg-black/30 transition-colors">
                       <h3 className="font-bold text-yellow-300 text-lg mb-3 flex items-center gap-2">
                         第 {w.weekIndex + 1} 週 

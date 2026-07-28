@@ -1,4 +1,4 @@
-import { Map, Calendar, BookOpen, Users, Target, PhoneCall } from 'lucide-react';
+import { Map, Calendar, BookOpen, Users, Target, PhoneCall, UserCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
@@ -8,7 +8,7 @@ const modules = [
   { id: 'books', title: '教室藏書管理', desc: '圖書資料、借閱紀錄、自動輪借', icon: BookOpen },
   { id: 'students', title: '學生資料管理', desc: '基本資料、聯絡人、過敏原紀錄', icon: Users },
   { id: 'indicators', title: '幼兒園學習指標', desc: '六大領域學習指標查詢與檢索、教案撰寫輔助', icon: Target },
-  { id: 'booking', title: '訪談預約', desc: '家長訪談預約與時段管理', icon: PhoneCall, external: true, url: 'https://lighminge.github.io/Booking-trip/' },
+  { id: 'teachers', title: '教師專區', desc: '教師資料管理、輪替與主教設定', icon: UserCheck },
 ];
 
 export default function Home() {

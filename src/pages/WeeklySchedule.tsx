@@ -23,7 +23,7 @@ export default function WeeklySchedule() {
   const [entries, setEntries] = useState<Record<string, WeeklyEntry>>({});
   const [leaves, setLeaves] = useState<Record<string, string>>({});
   const [attendance, setAttendance] = useState<Record<string, any>>({});
-  const [settings, setSettings] = useState({ leadTeacher: '主教', coTeacher: '協同', academicYear: '114', semester: '上學期' });
+  const [settings, setSettings] = useState<any>({ leadTeacher: '主教', coTeacher: '協同', academicYear: '114', semester: '上學期' });
   const [annualEvents, setAnnualEvents] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -54,6 +54,22 @@ export default function WeeklySchedule() {
     viewingWeek = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7)) + 1;
     if (annualDoc.weeks && annualDoc.weeks[viewingWeek - 1]) {
       currentTheme = annualDoc.weeks[viewingWeek - 1].theme || currentTheme;
+    }
+  }
+
+  let displayLeadTeacher = settings.leadTeacher || '主教';
+  let displayCoTeacher = settings.coTeacher || '協同';
+
+  if (settings.teachersRotation && settings.teachersRotation.teacherA) {
+    const rot = settings.teachersRotation;
+    const isOdd = viewingWeek % 2 !== 0;
+    const secondTeacher = rot.firstWeekLead === rot.teacherA ? rot.teacherB : rot.teacherA;
+    if (isOdd) {
+      displayLeadTeacher = rot.firstWeekLead;
+      displayCoTeacher = secondTeacher;
+    } else {
+      displayLeadTeacher = secondTeacher;
+      displayCoTeacher = rot.firstWeekLead;
     }
   }
 
@@ -228,8 +244,8 @@ export default function WeeklySchedule() {
             const isWeekDay = weekDays.includes(dateStr);
             const teacherLeave = leaves[dateStr];
             let classes = "rounded-sm py-0.5 ";
-            if (teacherLeave === settings.leadTeacher) classes += "bg-purple-600 font-bold border border-purple-300 text-[10px] leading-tight";
-            else if (teacherLeave === settings.coTeacher) classes += "bg-blue-600 font-bold border border-blue-300 text-[10px] leading-tight";
+            if (teacherLeave === displayLeadTeacher) classes += "bg-purple-600 font-bold border border-purple-300 text-[10px] leading-tight";
+            else if (teacherLeave === displayCoTeacher) classes += "bg-blue-600 font-bold border border-blue-300 text-[10px] leading-tight";
             else if (isWeekDay) classes += "bg-yellow-500/30 font-bold outline outline-1 outline-yellow-400";
             else classes += "text-white/80";
 
@@ -266,8 +282,8 @@ export default function WeeklySchedule() {
             <div className="mt-4 flex gap-4">
                {renderMiniMonthCalendar()}
                <div className="bg-black/20 border border-white/20 rounded p-3 text-sm flex flex-col justify-center gap-2 w-48">
-                 <div><span className="text-yellow-200">主班老師：</span><span className="font-bold">{settings.leadTeacher}</span></div>
-                 <div><span className="text-yellow-200">協同老師：</span><span className="font-bold">{settings.coTeacher}</span></div>
+                 <div><span className="text-yellow-200">主班老師：</span><span className="font-bold">{displayLeadTeacher}</span></div>
+                 <div><span className="text-yellow-200">協同老師：</span><span className="font-bold">{displayCoTeacher}</span></div>
                </div>
             </div>
           </div>
