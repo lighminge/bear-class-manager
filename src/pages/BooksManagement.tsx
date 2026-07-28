@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { BookOpen, CheckSquare, PlusCircle, PenTool, Trash2, Loader2, Printer, Settings, Search, X } from 'lucide-react';
+import { BookOpen, CheckSquare, PlusCircle, PenTool, Trash2, Loader2, Printer, Settings, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -477,7 +477,7 @@ export default function BooksManagement() {
                 </tr>
               </thead>
               <tbody>
-                {pagedBooks.map((b, i) => (
+                {pagedBooks.map(b => (
                   <tr key={b.id} className="border-b border-white/20 hover:bg-white/10">
                     <td className="p-3 text-center font-bold text-yellow-200">{b.bookNo}</td>
                     <td className="p-3 font-bold">{b.title}</td>
