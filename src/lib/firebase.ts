@@ -19,10 +19,8 @@ const app = initializeApp(firebaseConfig);
 // 🛡️ reCAPTCHA v3 (Firebase App Check) 安全設定 🛡️
 const recaptchaSiteKey = "6Lemz84sAAAAANdzXXLXB5IDIikNbII4BQDQebCY"; 
 
-let globalAppCheck = null;
-
 if (typeof window !== "undefined") {
-  globalAppCheck = initializeAppCheck(app, {
+  initializeAppCheck(app, {
     provider: new ReCaptchaV3Provider(recaptchaSiteKey),
     isTokenAutoRefreshEnabled: true
   });

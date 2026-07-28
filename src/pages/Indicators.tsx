@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Target, Search, PlusCircle, Edit3, Trash2 } from 'lucide-react';
+import { Target, Search, PlusCircle, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Indicator {
