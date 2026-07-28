@@ -2,6 +2,7 @@ import { HashRouter, Routes, Route } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { auth, signInAnonymously, onAuthStateChanged } from './lib/firebase';
 import Header from './components/Header';
+import Sidebar from './components/Sidebar';
 import Home from './pages/Home';
 import StudentsManagement from './pages/StudentsManagement';
 import BooksManagement from './pages/BooksManagement';
@@ -49,6 +50,7 @@ function App() {
     <HashRouter>
       <div className="p-4 md:p-8 flex flex-col min-h-screen">
         <Header />
+        <Sidebar />
         <main className="flex-grow">
           <Routes>
             <Route path="/" element={<Home />} />

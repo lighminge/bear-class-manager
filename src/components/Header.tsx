@@ -1,4 +1,5 @@
-import { Sun, Home as HomeIcon } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Sun, Cloud, CloudRain, Home as HomeIcon } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 export default function Header() {
@@ -6,7 +7,34 @@ export default function Header() {
   const location = useLocation();
   const today = new Date();
   
+  const [temp, setTemp] = useState<string>('--');
+  const [weatherCode, setWeatherCode] = useState<number>(0);
+  
+  useEffect(() => {
+    const fetchWeather = async () => {
+      try {
+        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=24.14&longitude=120.68&current_weather=true');
+        const data = await res.json();
+        if (data && data.current_weather) {
+          setTemp(data.current_weather.temperature.toString());
+          setWeatherCode(data.current_weather.weathercode);
+        }
+      } catch (err) {
+        console.error("Fetch weather error", err);
+      }
+    };
+    fetchWeather();
+  }, []);
+
   const isHome = location.pathname === '/';
+
+  const getWeatherDisplay = () => {
+    if (weatherCode <= 3) return { icon: <Sun className="text-yellow-300 w-8 h-8" />, text: '晴朗' };
+    if (weatherCode <= 48) return { icon: <Cloud className="text-gray-300 w-8 h-8" />, text: '多雲' };
+    return { icon: <CloudRain className="text-blue-300 w-8 h-8" />, text: '雨天' };
+  };
+
+  const weatherDisplay = getWeatherDisplay();
 
   return (
     <header className="flex flex-col md:flex-row justify-between items-center mb-8 border-b-4 border-white/50 pb-4 border-dashed">
@@ -36,10 +64,10 @@ export default function Header() {
           </div>
           <div className="flex flex-col items-center justify-center text-center w-16" title="臺中市即時天氣">
             <div className="text-3xl flex justify-center">
-              <Sun className="text-yellow-300 w-8 h-8" />
+              {weatherDisplay.icon}
             </div>
-            <span className="text-sm mt-1 font-bold">--°C</span>
-            <span className="text-sm text-yellow-100 font-bold tracking-widest mt-0.5">晴朗</span>
+            <span className="text-sm mt-1 font-bold">{temp}°C</span>
+            <span className="text-sm text-yellow-100 font-bold tracking-widest mt-0.5">{weatherDisplay.text}</span>
           </div>
         </div>
         
