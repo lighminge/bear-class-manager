@@ -296,10 +296,20 @@ export default function BooksManagement() {
         .title-table { border-collapse: collapse; width: 100%; }
         .title-table td { border: 1px solid black; text-align: center; }
         .vertical-title { font-size: 24px; padding: 15px 5px; line-height: 1.1; }
+        
+        /* MS Word Specific Landscape Settings */
+        @page WordSection1 {
+          size: 841.9pt 595.3pt; /* A4 landscape */
+          mso-page-orientation: landscape;
+          margin: 36.0pt 36.0pt 36.0pt 36.0pt;
+        }
+        div.WordSection1 { page: WordSection1; }
+        /* Browser Fallback */
         @page { size: A4 landscape; margin: 1.5cm; }
       </style>
     </head>
     <body>
+      <div class="WordSection1">
     `;
 
     for (let w = 0; w < weeksData.length; w += 2) {
@@ -369,7 +379,10 @@ export default function BooksManagement() {
       `;
     }
 
-    htmlContent += `</body></html>`;
+    htmlContent += `
+      </div>
+    </body>
+    </html>`;
     const blob = new Blob(['\ufeff', htmlContent], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
