@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, onSnapshot, setDoc, collection } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Users, Save, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Users, Save, Loader2 } from 'lucide-react';
 
 export default function Attendance() {
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -14,9 +14,9 @@ export default function Attendance() {
   useEffect(() => {
     const unsubStudents = onSnapshot(collection(db, 'bear_students'), (snap) => {
       const studs = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(s => s.academicYear === year && (!s.status || s.status === '在學'))
-        .sort((a, b) => Number(a.seatNo) - Number(b.seatNo));
+        .map(d => ({ id: d.id, ...(d.data() as any) }))
+        .filter((s: any) => s.academicYear === year && (!s.status || s.status === '在學'))
+        .sort((a: any, b: any) => Number(a.seatNo) - Number(b.seatNo));
       setStudents(studs);
     });
     return () => unsubStudents();
