@@ -5,6 +5,9 @@ import Header from './components/Header';
 import Home from './pages/Home';
 import StudentsManagement from './pages/StudentsManagement';
 import BooksManagement from './pages/BooksManagement';
+import AnnualCalendar from './pages/AnnualCalendar';
+import Indicators from './pages/Indicators';
+import WeeklySchedule from './pages/WeeklySchedule';
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -49,6 +52,9 @@ function App() {
         <main className="flex-grow">
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/annual" element={<AnnualCalendar />} />
+            <Route path="/schedule" element={<WeeklySchedule />} />
+            <Route path="/indicators" element={<Indicators />} />
             <Route path="/students" element={<StudentsManagement />} />
             <Route path="/books" element={<BooksManagement />} />
             {/* 其他頁面陸續加入 */}
