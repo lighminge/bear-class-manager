@@ -277,7 +277,15 @@ export default function BooksManagement() {
     const exportAutoArrangeWord = () => {
     if (!arrangementData) return;
     const weeksData = arrangementData.weeklyArrangements;
-    const studentsData = weeksData[0].items.map((it: any) => it.student);
+    
+    // Extract all unique books across all weeks to ensure static sorting
+    const allBooksMap = new Map();
+    weeksData.forEach((wk: any) => {
+      wk.items.forEach((it: any) => {
+        if (it.book) allBooksMap.set(it.book.id, it.book);
+      });
+    });
+    const sortedBooks = Array.from(allBooksMap.values()).sort((a: any, b: any) => String(a.bookNo || '').localeCompare(String(b.bookNo || ''), undefined, {numeric: true, sensitivity: 'base'}));
     
     // Vertical text using <br>
     const titleChars = `${arrangementData.academicYear}班級圖書借閱登記表 小熊班`.split('');
@@ -350,20 +358,20 @@ export default function BooksManagement() {
                 </tr>
       `;
 
-      studentsData.forEach((st: any, idx: number) => {
-        const item1 = w1.items[idx];
-        const item2 = w2 ? w2.items[idx] : null;
+      sortedBooks.forEach((bk: any) => {
+        const item1 = w1.items.find((it: any) => it.book?.id === bk.id);
+        const item2 = w2 ? w2.items.find((it: any) => it.book?.id === bk.id) : null;
 
         htmlContent += `
           <tr>
-            <td>${item1.book?.bookNo || ''}</td>
-            <td style="text-align: left;">${item1.book?.title || ''}</td>
-            <td>${st.name}</td>
+            <td>${bk.bookNo || ''}</td>
+            <td style="text-align: left;">${bk.title || ''}</td>
+            <td>${item1 ? item1.student.name : ''}</td>
             <td></td>
-            ${item2 ? `
-              <td>${item2.book?.bookNo || ''}</td>
-              <td style="text-align: left;">${item2.book?.title || ''}</td>
-              <td>${st.name}</td>
+            ${w2 ? `
+              <td>${bk.bookNo || ''}</td>
+              <td style="text-align: left;">${bk.title || ''}</td>
+              <td>${item2 ? item2.student.name : ''}</td>
               <td></td>
             ` : `<td></td><td></td><td></td><td></td>`}
           </tr>
