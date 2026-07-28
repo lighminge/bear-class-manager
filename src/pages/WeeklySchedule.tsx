@@ -46,6 +46,7 @@ export default function WeeklySchedule() {
   // Determine current week index (1 to 21) based on AnnualEvents startDate
   let viewingWeek = 1;
   let currentTheme = '各班自訂';
+  let currentEvents = '';
   const annualDoc = annualEvents[`${settings.academicYear}_${settings.semester}`];
   if (annualDoc && annualDoc.startDate) {
     const st = new Date(annualDoc.startDate);
@@ -54,8 +55,17 @@ export default function WeeklySchedule() {
     viewingWeek = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7)) + 1;
     if (annualDoc.weeks && annualDoc.weeks[viewingWeek - 1]) {
       currentTheme = annualDoc.weeks[viewingWeek - 1].theme || currentTheme;
+      currentEvents = annualDoc.weeks[viewingWeek - 1].events || '';
     }
   }
+
+  // Find teachers on leave this week
+  const teachersOnLeaveThisWeek: string[] = [];
+  weekDays.forEach(dateStr => {
+    if (leaves[dateStr]) {
+      teachersOnLeaveThisWeek.push(`${dateStr.substring(5).replace('-', '/')} ${leaves[dateStr]}`);
+    }
+  });
 
   let displayLeadTeacher = settings.leadTeacher || '主教';
   let displayCoTeacher = settings.coTeacher || '協同';
@@ -120,8 +130,7 @@ export default function WeeklySchedule() {
         const data = await res.json();
         if (data && data.current_weather) {
           const w = data.current_weather.weathercode <= 3 ? '晴朗' : data.current_weather.weathercode <= 48 ? '多雲' : '雨天';
-          const t = `${data.current_weather.temperature}°C`;
-          const weatherStr = `${w} ${t}`;
+          const weatherStr = w;
           
           const todayStr = new Date().toISOString().split('T')[0];
           if (weekDays.includes(todayStr)) {
@@ -294,9 +303,27 @@ export default function WeeklySchedule() {
             <FileText className="w-5 h-5" />
             匯出本週紀錄 (Word)
           </button>
-          <div className="bg-white/10 rounded-xl p-4 border border-white/30 backdrop-blur text-center shadow-lg">
-             <div className="text-sm text-yellow-200 mb-1 font-bold">🎯 本週教學主題</div>
-             <div className="text-xl font-bold tracking-wider">{currentTheme}</div>
+          <div className="bg-white/10 rounded-xl p-4 border border-white/30 backdrop-blur shadow-lg text-sm text-left flex flex-col gap-2">
+            <div>
+              <div className="text-yellow-200 mb-1 font-bold">🎯 本週教學主題</div>
+              <div className="text-lg font-bold tracking-wider">{currentTheme}</div>
+            </div>
+            {currentEvents && (
+              <div>
+                <div className="text-yellow-200 mb-1 font-bold mt-2">📌 本週重點事項</div>
+                <div className="whitespace-pre-wrap">{currentEvents}</div>
+              </div>
+            )}
+            {teachersOnLeaveThisWeek.length > 0 && (
+              <div>
+                <div className="text-red-300 mb-1 font-bold mt-2">⚠️ 本週請假資訊</div>
+                <div className="text-red-200">
+                  {teachersOnLeaveThisWeek.map((info, idx) => (
+                    <div key={idx}>{info}</div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -317,21 +344,14 @@ export default function WeeklySchedule() {
 
             return (
               <div key={dateStr} className={`chalk-box flex flex-col ${isToday ? 'border-4 border-yellow-400 bg-yellow-600/20' : ''}`}>
-                <div className="text-center font-bold text-lg border-b border-white/20 pb-2 mb-2 flex justify-between items-center">
-                  <div className="text-left">
+                <div className="text-center font-bold text-lg border-b border-white/20 pb-4 mb-4 flex flex-col items-center">
+                  <div className="flex gap-2 items-center">
                     <div className={isToday ? 'text-yellow-300' : 'text-white'}>{dayNames[idx]}</div>
-                    <div className="text-xs font-normal opacity-70">{dateStr}</div>
-                    <div className="text-[10px] bg-black/30 rounded px-1 mt-1 font-normal text-white/80 border border-white/10">
-                       出:{pCount} 假:{lCount}
-                    </div>
+                    <div className={`text-xl ${isToday ? 'text-yellow-300' : 'text-white'}`}>{dateStr.substring(5).replace('-', '/')}</div>
                   </div>
-                  <button 
-                    onClick={() => saveEntry(dateStr)} 
-                    disabled={saving}
-                    className="chalk-btn text-xs px-2 py-1 bg-yellow-600/50 hover:bg-yellow-500"
-                  >
-                    <Save className="w-4 h-4" />
-                  </button>
+                  <div className="text-sm bg-black/40 rounded-lg p-2 mt-3 font-bold text-yellow-300 border-2 border-white/20 shadow-inner w-full">
+                     出勤: <span className="text-green-400">{pCount}</span> 人 | 請假: <span className="text-red-400">{lCount}</span> 人
+                  </div>
                 </div>
                 
                 <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">

@@ -3,6 +3,7 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserCheck, Save, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { collection } from 'firebase/firestore';
+import ConfirmModal from './ConfirmModal';
 
 export default function TeacherLeaves() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -12,6 +13,9 @@ export default function TeacherLeaves() {
   const [teachers, setTeachers] = useState<{ id: string; name: string }[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState('');
   const [colors, setColors] = useState<Record<string, { bg: string; text: string }>>({});
+  
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
 
   useEffect(() => {
     const unsubTeachers = onSnapshot(collection(db, 'bear_teachers'), (snap) => {
@@ -65,7 +69,8 @@ export default function TeacherLeaves() {
     setSaving(true);
     try {
       await setDoc(doc(db, 'bear_teacherLeaves', 'all'), { records: leaves }, { merge: true });
-      alert('請假紀錄已儲存！');
+      setAlertMessage('請假紀錄已儲存！');
+      setShowAlert(true);
     } catch (e) {
       console.error(e);
       alert('儲存失敗');
@@ -87,7 +92,15 @@ export default function TeacherLeaves() {
   const today = new Date();
 
   return (
-    <div className="p-4 h-full flex flex-col bg-[#2b5b3f]/95 text-white">
+    <div className="p-4 h-full flex flex-col bg-[#2b5b3f]/95 text-white relative">
+      <ConfirmModal 
+        isOpen={showAlert}
+        type="alert"
+        title="儲存成功"
+        message={alertMessage}
+        onConfirm={() => setShowAlert(false)}
+        onCancel={() => setShowAlert(false)}
+      />
       <div className="flex items-center gap-3 mb-4 border-b border-white/20 pb-4">
         <UserCheck className="w-6 h-6 text-yellow-300" />
         <h2 className="text-xl font-bold tracking-wider">老師請假管理</h2>

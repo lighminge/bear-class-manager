@@ -13,21 +13,23 @@ export default function Sidebar() {
       <div className="fixed left-0 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40">
         <button
           onClick={() => setActiveTab(activeTab === 'attendance' ? 'none' : 'attendance')}
-          className={`flex items-center justify-center p-3 rounded-r-xl border-y-2 border-r-2 shadow-xl transition-colors ${
+          className={`flex items-center justify-center p-3 gap-2 rounded-r-xl border-y-2 border-r-2 shadow-xl transition-colors ${
             activeTab === 'attendance' ? 'bg-yellow-600 border-yellow-400' : 'bg-black/50 border-white/20 hover:bg-black/70'
           }`}
           title="點名簿"
         >
           <Users className="w-6 h-6 text-white" />
+          <span className="font-bold text-white whitespace-nowrap hidden sm:inline">點名簿</span>
         </button>
         <button
           onClick={() => setActiveTab(activeTab === 'leaves' ? 'none' : 'leaves')}
-          className={`flex items-center justify-center p-3 rounded-r-xl border-y-2 border-r-2 shadow-xl transition-colors ${
+          className={`flex items-center justify-center p-3 gap-2 rounded-r-xl border-y-2 border-r-2 shadow-xl transition-colors ${
             activeTab === 'leaves' ? 'bg-yellow-600 border-yellow-400' : 'bg-black/50 border-white/20 hover:bg-black/70'
           }`}
           title="老師請假"
         >
           <UserCheck className="w-6 h-6 text-white" />
+          <span className="font-bold text-white whitespace-nowrap hidden sm:inline">老師請假</span>
         </button>
       </div>
 

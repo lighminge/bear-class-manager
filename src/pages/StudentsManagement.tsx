@@ -16,12 +16,44 @@ interface Student {
   emergencyPhone: string;
 }
 
+// Pagination Component
+function Pagination({ total, current, pageSize, onPageChange, onPageSizeChange }: any) {
+  const pages = Math.ceil(total / pageSize);
+  if (pages === 0) return null;
+  return (
+    <div className="flex justify-between items-center bg-black/20 p-2 rounded mt-4">
+      <div className="flex gap-2">
+        <button onClick={() => onPageChange(1)} disabled={current === 1} className="chalk-btn py-1 px-3 text-xs bg-white/10 hover:bg-white/20 disabled:opacity-50">第一頁</button>
+        <button onClick={() => onPageChange(current - 1)} disabled={current === 1} className="chalk-btn py-1 px-3 text-xs bg-white/10 hover:bg-white/20 disabled:opacity-50">上一頁</button>
+      </div>
+      <div className="flex gap-4 items-center text-sm font-bold text-yellow-200">
+        <span>第 {current} / {pages} 頁</span>
+        <select value={pageSize} onChange={e => { onPageSizeChange(Number(e.target.value)); onPageChange(1); }} className="chalk-input bg-black/50 py-1 text-xs text-white">
+          <option value={5}>5 筆 / 頁</option>
+          <option value={10}>10 筆 / 頁</option>
+          <option value={15}>15 筆 / 頁</option>
+          <option value={20}>20 筆 / 頁</option>
+        </select>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={() => onPageChange(current + 1)} disabled={current === pages} className="chalk-btn py-1 px-3 text-xs bg-white/10 hover:bg-white/20 disabled:opacity-50">下一頁</button>
+        <button onClick={() => onPageChange(pages)} disabled={current === pages} className="chalk-btn py-1 px-3 text-xs bg-white/10 hover:bg-white/20 disabled:opacity-50">最後頁</button>
+      </div>
+    </div>
+  );
+}
+
 export default function StudentsManagement() {
   const [students, setStudents] = useState<Student[]>([]);
-  const [filterYear, setFilterYear] = useState('114');
-  const [editId, setEditId] = useState<string | null>(null);
-
+  
+  // Filters
+  const [filterYear, setFilterYear] = useState('ALL');
+  const [filterName, setFilterName] = useState('');
+  const [filterStatus, setFilterStatus] = useState('在學');
+  
   // Form State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [academicYear, setAcademicYear] = useState('114');
   const [seatNo, setSeatNo] = useState('');
   const [name, setName] = useState('');
@@ -30,6 +62,10 @@ export default function StudentsManagement() {
   const [allergens, setAllergens] = useState('');
   const [emergencyContact, setEmergencyContact] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'bear_students'), (snapshot) => {
@@ -41,6 +77,11 @@ export default function StudentsManagement() {
     });
     return () => unsubscribe();
   }, []);
+
+  // 當過濾條件改變時，重設分頁到第一頁
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterYear, filterName, filterStatus]);
 
   const resetForm = () => {
     setEditId(null);
@@ -64,7 +105,7 @@ export default function StudentsManagement() {
     setAllergens(s.allergens || '');
     setEmergencyContact(s.emergencyContact || '');
     setEmergencyPhone(s.emergencyPhone || '');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsModalOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -90,6 +131,7 @@ export default function StudentsManagement() {
         await addDoc(collection(db, 'bear_students'), data);
       }
       resetForm();
+      setIsModalOpen(false);
     } catch (error) {
       console.error(error);
       alert("儲存失敗！");
@@ -110,119 +152,205 @@ export default function StudentsManagement() {
   // Filtered Students
   const displayStudents = students
     .filter(s => filterYear === 'ALL' || s.academicYear === filterYear)
+    .filter(s => filterStatus === 'ALL' || (s.status || '在學') === filterStatus)
+    .filter(s => !filterName || s.name.includes(filterName))
     .sort((a, b) => Number(a.seatNo) - Number(b.seatNo));
 
   const boys = displayStudents.filter(s => s.gender === '男').length;
   const girls = displayStudents.filter(s => s.gender === '女').length;
 
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedStudents = displayStudents.slice(startIndex, startIndex + pageSize);
+
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
-      {/* Form Section */}
-      <motion.div 
-        layout
-        className={`chalk-box transition-all duration-500 ${editId ? 'border-4 border-yellow-400 bg-yellow-600/30 shadow-[0_0_20px_rgba(250,204,21,0.5)]' : ''}`}
-      >
-        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-          {editId ? <PenTool /> : <PlusCircle />} 
-          {editId ? '修改學生資料' : '新增學生資料'}
-          {editId && <span className="text-sm font-normal text-yellow-200 ml-2 border border-yellow-400 px-2 rounded bg-black/30">(編輯模式)</span>}
-        </h2>
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <select required value={academicYear} onChange={e => setAcademicYear(e.target.value)} className="chalk-input text-black bg-white">
-            {['112', '113', '114', '115', '116', '117', '118'].map(y => (
-              <option key={y} value={y}>{y}學年</option>
-            ))}
-          </select>
-          <input required type="number" placeholder="座號" value={seatNo} onChange={e => setSeatNo(e.target.value)} className="chalk-input" />
-          <input required type="text" placeholder="姓名" value={name} onChange={e => setName(e.target.value)} className="chalk-input" />
-          <select value={gender} onChange={e => setGender(e.target.value)} className="chalk-input text-black bg-white">
-            <option value="男">男</option>
-            <option value="女">女</option>
-          </select>
-          <select value={status} onChange={e => setStatus(e.target.value)} className="chalk-input text-black bg-white">
-            <option value="在學">狀態：在學</option>
-            <option value="休學">狀態：休學</option>
-            <option value="轉出">狀態：轉出</option>
-            <option value="畢業">狀態：畢業</option>
-          </select>
-          <input type="text" placeholder="過敏原 (無則免填)" value={allergens} onChange={e => setAllergens(e.target.value)} className="chalk-input" />
-          <input type="text" placeholder="緊急聯絡人 (非必填)" value={emergencyContact} onChange={e => setEmergencyContact(e.target.value)} className="chalk-input" />
-          <input type="text" placeholder="緊急聯絡電話 (非必填)" value={emergencyPhone} onChange={e => setEmergencyPhone(e.target.value)} className="chalk-input" />
-          <div className="md:col-span-3 flex justify-end gap-2 mt-2">
-            {editId && <button type="button" onClick={resetForm} className="chalk-btn hover:text-yellow-300">取消</button>}
-            <button type="submit" className="chalk-btn bg-yellow-600/50">儲存資料</button>
+    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
+      {/* Filter Section */}
+      <div className="chalk-box flex flex-col md:flex-row gap-4 items-end justify-between">
+        <div className="flex flex-wrap gap-4 items-end">
+          <div>
+            <label className="block text-yellow-200 text-sm mb-1">學年度</label>
+            <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="chalk-input text-black bg-white w-32">
+              <option value="ALL">全部學年</option>
+              {['112', '113', '114', '115', '116', '117', '118'].map(y => (
+                <option key={y} value={y}>{y}學年</option>
+              ))}
+            </select>
           </div>
-        </form>
-      </motion.div>
+          <div>
+            <label className="block text-yellow-200 text-sm mb-1">學生姓名</label>
+            <input 
+              type="text" 
+              placeholder="搜尋姓名..." 
+              value={filterName} 
+              onChange={e => setFilterName(e.target.value)} 
+              className="chalk-input text-black bg-white w-40"
+            />
+          </div>
+          <div>
+            <label className="block text-yellow-200 text-sm mb-1">狀態</label>
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="chalk-input text-black bg-white w-32">
+              <option value="ALL">全部狀態</option>
+              <option value="在學">在學</option>
+              <option value="休學">休學</option>
+              <option value="轉出">轉出</option>
+              <option value="畢業">畢業</option>
+            </select>
+          </div>
+        </div>
+        
+        <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="chalk-btn bg-green-600 hover:bg-green-500 flex items-center gap-2 shadow-lg">
+          <PlusCircle className="w-5 h-5" /> 新增學生
+        </button>
+      </div>
+
+      {/* Edit/Add Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="chalk-box max-w-2xl w-full relative bg-[#2b5b3f]"
+            >
+              <h2 className="text-2xl font-bold mb-6 text-yellow-300 flex items-center gap-2">
+                {editId ? <PenTool /> : <PlusCircle />} 
+                {editId ? '修改學生資料' : '新增學生資料'}
+              </h2>
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-yellow-200 text-sm mb-1">學年度 *</label>
+                  <select required value={academicYear} onChange={e => setAcademicYear(e.target.value)} className="chalk-input text-black bg-white w-full">
+                    {['112', '113', '114', '115', '116', '117', '118'].map(y => (
+                      <option key={y} value={y}>{y}學年</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-yellow-200 text-sm mb-1">座號 *</label>
+                  <input required type="number" placeholder="座號" value={seatNo} onChange={e => setSeatNo(e.target.value)} className="chalk-input w-full text-black bg-white" />
+                </div>
+                <div>
+                  <label className="block text-yellow-200 text-sm mb-1">姓名 *</label>
+                  <input required type="text" placeholder="姓名" value={name} onChange={e => setName(e.target.value)} className="chalk-input w-full text-black bg-white" />
+                </div>
+                <div>
+                  <label className="block text-yellow-200 text-sm mb-1">性別 *</label>
+                  <select value={gender} onChange={e => setGender(e.target.value)} className="chalk-input text-black bg-white w-full">
+                    <option value="男">男</option>
+                    <option value="女">女</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-yellow-200 text-sm mb-1">狀態 *</label>
+                  <select value={status} onChange={e => setStatus(e.target.value)} className="chalk-input text-black bg-white w-full">
+                    <option value="在學">在學</option>
+                    <option value="休學">休學</option>
+                    <option value="轉出">轉出</option>
+                    <option value="畢業">畢業</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-yellow-200 text-sm mb-1">過敏原</label>
+                  <input type="text" placeholder="過敏原 (無則免填)" value={allergens} onChange={e => setAllergens(e.target.value)} className="chalk-input w-full text-black bg-white" />
+                </div>
+                <div>
+                  <label className="block text-yellow-200 text-sm mb-1">緊急聯絡人</label>
+                  <input type="text" placeholder="緊急聯絡人 (非必填)" value={emergencyContact} onChange={e => setEmergencyContact(e.target.value)} className="chalk-input w-full text-black bg-white" />
+                </div>
+                <div>
+                  <label className="block text-yellow-200 text-sm mb-1">緊急聯絡電話</label>
+                  <input type="text" placeholder="聯絡電話 (非必填)" value={emergencyPhone} onChange={e => setEmergencyPhone(e.target.value)} className="chalk-input w-full text-black bg-white" />
+                </div>
+                <div className="md:col-span-2 flex justify-end gap-3 mt-6 pt-4 border-t border-white/20">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="chalk-btn bg-black/20 text-white hover:bg-black/40">取消</button>
+                  <button type="submit" className="chalk-btn bg-yellow-600/80 hover:bg-yellow-500 font-bold px-6 shadow-lg">儲存資料</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* List Section */}
       <div className="chalk-box overflow-x-auto custom-scrollbar">
         <h2 className="text-2xl font-bold mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Users /> 班級學生名單
-            <span className="text-sm font-normal bg-black/30 px-3 py-1.5 rounded-full border border-white/20 shadow-inner tracking-wide">
-               總計: <span className="font-bold text-yellow-300 text-lg">{displayStudents.length}</span> 人 
+            <Users className="w-6 h-6 text-yellow-300" /> 學生名單
+            <span className="text-sm font-normal bg-black/30 px-3 py-1.5 rounded-full border border-white/20 shadow-inner tracking-wide ml-2">
+               找到: <span className="font-bold text-yellow-300 text-lg">{displayStudents.length}</span> 人 
                <span className="text-white/50 mx-2">|</span> 
-               男: <span className="font-bold text-blue-300">{boys}</span> 人
+               男: <span className="font-bold text-blue-300">{boys}</span> 
                <span className="text-white/50 mx-2">|</span> 
-               女: <span className="font-bold text-red-300">{girls}</span> 人
+               女: <span className="font-bold text-red-300">{girls}</span>
              </span>
-          </div>
-          <div className="flex items-center gap-2 text-sm font-normal">
-            <label className="text-yellow-100">篩選學年：</label>
-            <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="chalk-input text-black bg-white py-1 rounded">
-              <option value="ALL">全部學年</option>
-              {Array.from(new Set(students.map(s => s.academicYear))).filter(Boolean).sort().map(y => (
-                <option key={y} value={y}>{y}學年</option>
-              ))}
-            </select>
           </div>
         </h2>
         
         <table className="w-full text-left border-collapse min-w-[800px]">
           <thead>
-            <tr className="border-b-2 border-white/50">
-              <th className="p-2">就讀學年</th>
-              <th className="p-2">座號</th>
-              <th className="p-2">姓名</th>
-              <th className="p-2">性別</th>
-              <th className="p-2 w-20">狀態</th>
-              <th className="p-2 text-red-200">過敏原</th>
-              <th className="p-2">聯絡人</th>
-              <th className="p-2">聯絡電話</th>
-              <th className="p-2 text-center w-24">操作</th>
+            <tr className="border-b-2 border-white/50 bg-black/20">
+              <th className="p-3">學年</th>
+              <th className="p-3">座號</th>
+              <th className="p-3">姓名</th>
+              <th className="p-3">性別</th>
+              <th className="p-3 w-20">狀態</th>
+              <th className="p-3 text-red-200">過敏原</th>
+              <th className="p-3">聯絡人</th>
+              <th className="p-3">聯絡電話</th>
+              <th className="p-3 text-center w-24">操作</th>
             </tr>
           </thead>
           <tbody>
             <AnimatePresence>
-              {displayStudents.map(s => {
-                const isEnrolled = (!s.status || s.status === '在學');
-                return (
-                  <motion.tr 
-                    key={s.id}
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    className={`border-b border-white/20 hover:bg-white/10 ${!isEnrolled ? 'opacity-50' : ''}`}
-                  >
-                    <td className="p-2 font-bold text-yellow-300">{s.academicYear || '-'}</td>
-                    <td className="p-2">{s.seatNo}</td>
-                    <td className="p-2 font-bold">{s.name}</td>
-                    <td className="p-2">{s.gender}</td>
-                    <td className={`p-2 font-bold ${isEnrolled ? 'text-green-300' : 'text-gray-400'}`}>{s.status || '在學'}</td>
-                    <td className="p-2 text-red-200">{s.allergens || '無'}</td>
-                    <td className="p-2">{s.emergencyContact || '-'}</td>
-                    <td className="p-2">{s.emergencyPhone || '-'}</td>
-                    <td className="p-2 flex justify-center gap-2">
-                      <button onClick={() => handleEdit(s)} className="text-yellow-300 hover:scale-110 transition-transform"><PenTool className="w-5 h-5" /></button>
-                      <button onClick={() => handleDelete(s.id)} className="text-red-400 hover:scale-110 transition-transform"><Trash2 className="w-5 h-5" /></button>
-                    </td>
-                  </motion.tr>
-                );
-              })}
+              {paginatedStudents.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="p-8 text-center text-white/50">找不到符合條件的學生資料</td>
+                </tr>
+              ) : (
+                paginatedStudents.map(s => {
+                  const isEnrolled = (!s.status || s.status === '在學');
+                  return (
+                    <motion.tr 
+                      key={s.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className={`border-b border-white/20 hover:bg-white/10 transition-colors ${!isEnrolled ? 'opacity-50 hover:opacity-80' : ''}`}
+                    >
+                      <td className="p-3 font-bold text-yellow-300">{s.academicYear || '-'}</td>
+                      <td className="p-3">{s.seatNo}</td>
+                      <td className="p-3 font-bold">{s.name}</td>
+                      <td className="p-3">{s.gender}</td>
+                      <td className={`p-3 font-bold ${isEnrolled ? 'text-green-300' : 'text-gray-400'}`}>{s.status || '在學'}</td>
+                      <td className="p-3 text-red-300 font-bold">{s.allergens || '-'}</td>
+                      <td className="p-3">{s.emergencyContact || '-'}</td>
+                      <td className="p-3">{s.emergencyPhone || '-'}</td>
+                      <td className="p-3 flex justify-center gap-2">
+                        <button onClick={() => handleEdit(s)} className="p-2 hover:bg-blue-500/50 rounded-full transition-colors group">
+                          <PenTool className="w-4 h-4 text-blue-300 group-hover:text-white" />
+                        </button>
+                        <button onClick={() => handleDelete(s.id)} className="p-2 hover:bg-red-500/50 rounded-full transition-colors group">
+                          <Trash2 className="w-4 h-4 text-red-300 group-hover:text-white" />
+                        </button>
+                      </td>
+                    </motion.tr>
+                  );
+                })
+              )}
             </AnimatePresence>
           </tbody>
         </table>
+
+        {displayStudents.length > 0 && (
+          <Pagination 
+            total={displayStudents.length} 
+            current={currentPage} 
+            pageSize={pageSize} 
+            onPageChange={setCurrentPage} 
+            onPageSizeChange={setPageSize} 
+          />
+        )}
       </div>
     </div>
   );

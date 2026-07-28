@@ -20,6 +20,8 @@ export default function TeachersManagement() {
   const [formData, setFormData] = useState({ name: '', title: '', phone: '', email: '' });
 
   const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmType, setConfirmType] = useState<'confirm' | 'alert'>('confirm');
+  const [confirmTitle, setConfirmTitle] = useState('確認');
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmAction, setConfirmAction] = useState<() => void>(() => {});
 
@@ -74,6 +76,8 @@ export default function TeachersManagement() {
   };
 
   const requestDelete = (id: string, name: string) => {
+    setConfirmType('confirm');
+    setConfirmTitle('確認刪除');
     setConfirmMessage(`確定要刪除教師「${name}」的資料嗎？`);
     setConfirmAction(() => async () => {
       await deleteDoc(doc(db, 'bear_teachers', id));
@@ -89,7 +93,11 @@ export default function TeachersManagement() {
     setSavingRotation(true);
     try {
       await setDoc(doc(db, 'bear_settings', 'main'), { teachersRotation: rotationSettings }, { merge: true });
-      alert('輪調設定已儲存！每週排程行事曆將會自動切換主教與協同老師。');
+      setConfirmType('alert');
+      setConfirmTitle('儲存成功');
+      setConfirmMessage('輪調設定已儲存！每週排程行事曆將會自動切換主教與協同老師。');
+      setConfirmAction(() => () => setShowConfirm(false));
+      setShowConfirm(true);
     } catch (err) {
       alert('儲存失敗');
     } finally {
@@ -105,7 +113,8 @@ export default function TeachersManagement() {
     <div className="max-w-[1200px] mx-auto animate-fade-in space-y-8">
       <ConfirmModal 
         isOpen={showConfirm}
-        title="確認刪除"
+        type={confirmType}
+        title={confirmTitle}
         message={confirmMessage}
         onConfirm={confirmAction}
         onCancel={() => setShowConfirm(false)}

@@ -8,10 +8,11 @@ interface ConfirmModalProps {
   onCancel: () => void;
   confirmText?: string;
   cancelText?: string;
+  type?: 'confirm' | 'alert';
 }
 
 export default function ConfirmModal({ 
-  isOpen, title, message, onConfirm, onCancel, confirmText = '確定', cancelText = '取消' 
+  isOpen, title, message, onConfirm, onCancel, confirmText = '確定', cancelText = '取消', type = 'confirm'
 }: ConfirmModalProps) {
   return (
     <AnimatePresence>
@@ -33,11 +34,13 @@ export default function ConfirmModal({
             <h3 className="text-xl font-bold text-yellow-300 mb-3">{title}</h3>
             <p className="text-white/90 mb-6 whitespace-pre-wrap">{message}</p>
             <div className="flex justify-end gap-3">
-              <button onClick={onCancel} className="chalk-btn bg-black/20 hover:bg-black/40 text-white/80">
-                {cancelText}
-              </button>
-              <button onClick={onConfirm} className="chalk-btn bg-yellow-600/80 hover:bg-yellow-500 font-bold border-yellow-400 shadow-lg">
-                {confirmText}
+              {type === 'confirm' && (
+                <button onClick={onCancel} className="chalk-btn bg-black/20 hover:bg-black/40 text-white/80">
+                  {cancelText}
+                </button>
+              )}
+              <button onClick={onConfirm} className="chalk-btn bg-yellow-600/80 hover:bg-yellow-500 font-bold border-yellow-400 shadow-lg px-6">
+                {type === 'alert' ? '了解' : confirmText}
               </button>
             </div>
           </motion.div>
