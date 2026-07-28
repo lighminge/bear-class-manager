@@ -295,7 +295,7 @@ export default function BooksManagement() {
         .grid-table th { background-color: #ffffff; font-weight: normal; }
         .title-table { border-collapse: collapse; width: 100%; }
         .title-table td { border: 1px solid black; text-align: center; }
-        .vertical-title { font-size: 20px; padding: 10px 5px; line-height: 1.1; }
+        .vertical-title { font-size: 16px; padding: 4px 2px; line-height: 1.0; }
         
         /* MS Word Specific Landscape Settings */
         @page WordSection1 {
@@ -322,16 +322,15 @@ export default function BooksManagement() {
 
       htmlContent += `
         ${pageBreak}
-        <table style="width: 100%; border: none; border-collapse: collapse;">
+        <table style="width: 100%; border: none; border-collapse: collapse; page-break-inside: avoid;">
           <tr>
             <td style="width: 50px; vertical-align: top; border: none; padding-right: 15px;">
               <table class="title-table">
                 <tr>
                   <td class="vertical-title">${verticalTitle}</td>
                 </tr>
-                <tr><td style="height: 10px; border: none;"></td></tr>
                 <tr>
-                  <td style="padding: 10px 5px; height: 80px; font-size: 16px; vertical-align: top;">借<br>閱<br>日<br>期</td>
+                  <td style="padding: 5px 2px; height: 60px; font-size: 14px; vertical-align: top;">借<br>閱<br>日<br>期</td>
                 </tr>
               </table>
             </td>
@@ -357,12 +356,12 @@ export default function BooksManagement() {
 
         htmlContent += `
           <tr>
-            <td>${idx + 1}</td>
+            <td>${item1.book?.bookNo || ''}</td>
             <td style="text-align: left;">${item1.book?.title || ''}</td>
             <td>${st.name}</td>
             <td></td>
             ${item2 ? `
-              <td>${idx + 1}</td>
+              <td>${item2.book?.bookNo || ''}</td>
               <td style="text-align: left;">${item2.book?.title || ''}</td>
               <td>${st.name}</td>
               <td></td>
