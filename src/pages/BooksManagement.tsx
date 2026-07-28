@@ -291,11 +291,11 @@ export default function BooksManagement() {
       <style>
         body { font-family: "Microsoft JhengHei", "標楷體", sans-serif; }
         .grid-table { width: 100%; border-collapse: collapse; text-align: center; }
-        .grid-table th, .grid-table td { border: 1px solid black; padding: 6px 4px; font-size: 16px; }
+        .grid-table th, .grid-table td { border: 1px solid black; padding: 4px; font-size: 15px; }
         .grid-table th { background-color: #ffffff; font-weight: normal; }
         .title-table { border-collapse: collapse; width: 100%; }
         .title-table td { border: 1px solid black; text-align: center; }
-        .vertical-title { font-size: 24px; padding: 15px 5px; line-height: 1.1; }
+        .vertical-title { font-size: 20px; padding: 10px 5px; line-height: 1.1; }
         
         /* MS Word Specific Landscape Settings */
         @page WordSection1 {
@@ -339,14 +339,14 @@ export default function BooksManagement() {
               <table class="grid-table">
                 <tr>
                   <th style="width: 40px;">編<br>號</th>
-                  <th style="font-size: 18px;">${d1} 書名</th>
-                  <th style="width: 80px; font-size: 18px;">借閱者</th>
-                  <th style="width: 100px; font-size: 18px;">還書日期</th>
+                  <th>${d1} 書名</th>
+                  <th style="width: 80px;">借閱者</th>
+                  <th style="width: 90px;">還書日期</th>
                   ${w2 ? `
                   <th style="width: 40px;">編<br>號</th>
-                  <th style="font-size: 18px;">${d2} 書名</th>
-                  <th style="width: 80px; font-size: 18px;">借閱者</th>
-                  <th style="width: 100px; font-size: 18px;">還書日期</th>
+                  <th>${d2} 書名</th>
+                  <th style="width: 80px;">借閱者</th>
+                  <th style="width: 90px;">還書日期</th>
                   ` : `<th></th><th></th><th></th><th></th>`}
                 </tr>
       `;
@@ -357,14 +357,14 @@ export default function BooksManagement() {
 
         htmlContent += `
           <tr>
-            <td style="font-size: 18px;">${idx + 1}</td>
+            <td>${idx + 1}</td>
             <td style="text-align: left;">${item1.book?.title || ''}</td>
-            <td style="font-size: 18px;">${st.name}</td>
+            <td>${st.name}</td>
             <td></td>
             ${item2 ? `
-              <td style="font-size: 18px;">${idx + 1}</td>
+              <td>${idx + 1}</td>
               <td style="text-align: left;">${item2.book?.title || ''}</td>
-              <td style="font-size: 18px;">${st.name}</td>
+              <td>${st.name}</td>
               <td></td>
             ` : `<td></td><td></td><td></td><td></td>`}
           </tr>
@@ -391,6 +391,16 @@ export default function BooksManagement() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleDeleteArrangement = () => {
+    setConfirmMessage('確定要刪除目前的借閱表結果嗎？此動作無法復原。');
+    setConfirmAction(() => async () => {
+      await deleteDoc(doc(db, 'bear_autoArrangements', 'main'));
+      setArrangementData(null);
+      setShowConfirm(false);
+    });
+    setShowConfirm(true);
   };
 
   return (
@@ -663,6 +673,9 @@ export default function BooksManagement() {
                   <button onClick={() => setViewMode('student')} className={`chalk-btn text-sm ${viewMode === 'student' ? 'bg-yellow-600 border-yellow-400 font-bold' : 'bg-black/30'}`}>依學生檢視</button>
                   <button onClick={exportAutoArrangeWord} className="chalk-btn text-sm bg-blue-600/70 hover:bg-blue-500 shadow-lg border-blue-400 flex items-center gap-1">
                     <Printer className="w-4 h-4" /> 匯出為 Word
+                  </button>
+                  <button onClick={handleDeleteArrangement} className="chalk-btn text-sm bg-red-600/70 hover:bg-red-500 shadow-lg border-red-400 flex items-center gap-1">
+                    <Trash2 className="w-4 h-4" /> 刪除結果
                   </button>
                 </div>
               </div>
