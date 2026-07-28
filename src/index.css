@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Comic Neue', 'Chalkboard SE', 'Nunito', sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-[#234B35] text-[#f4f4f4] min-h-screen flex flex-col overflow-x-hidden;
+    font-family: var(--font-sans);
+  }
+}
+
+@layer components {
+  .chalk-box {
+    @apply bg-[#2d5a3f] border-2 border-dashed border-[#f4f4f4] rounded-xl p-4 shadow-lg shadow-black/20;
+  }
+  .chalk-input {
+    @apply bg-transparent border-b-2 border-[#f4f4f4] text-white outline-none p-2 transition-colors;
+  }
+  .chalk-input:focus {
+    @apply border-yellow-300;
+  }
+  .chalk-input::placeholder {
+    @apply text-green-200/70;
+  }
+  .chalk-btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 border-2 border-white rounded-lg font-bold cursor-pointer transition-colors hover:bg-white/20;
+  }
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
