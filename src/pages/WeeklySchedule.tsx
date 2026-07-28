@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Calendar as CalendarIcon, Loader2, Save, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, FileText } from 'lucide-react';
 
 interface WeeklyEntry {
   weather: string;
@@ -26,7 +26,6 @@ export default function WeeklySchedule() {
   const [settings, setSettings] = useState<any>({ leadTeacher: '主教', coTeacher: '協同', academicYear: '114', semester: '上學期' });
   const [annualEvents, setAnnualEvents] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
 
   // Generate week dates (Monday to Friday)
   const getWeekDays = (dateStr: string) => {
@@ -157,15 +156,12 @@ export default function WeeklySchedule() {
   };
 
   const saveEntry = async (date: string) => {
-    setSaving(true);
     try {
       const data = entries[`${date}_0`] || {};
       await setDoc(doc(db, 'bear_scheduleEntries', `${date}_0`), data, { merge: true });
     } catch (error) {
       console.error(error);
       alert('儲存失敗');
-    } finally {
-      setSaving(false);
     }
   };
 
