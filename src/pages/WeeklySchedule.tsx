@@ -47,8 +47,10 @@ export default function WeeklySchedule() {
   const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState<string | null>(null);
   const [confirmDeleteEventIndex, setConfirmDeleteEventIndex] = useState<number | null>(null);
   
+  const [classEventsDoc, setClassEventsDoc] = useState<Record<string, any>>({});
   const [calendarActionModal, setCalendarActionModal] = useState<{ isOpen: boolean, dateStr: string }>({ isOpen: false, dateStr: '' });
   const [eventInputModal, setEventInputModal] = useState<{ isOpen: boolean, initialDateStr: string, isEditing: boolean, editingIndex: number, text: string }>({ isOpen: false, initialDateStr: '', isEditing: false, editingIndex: -1, text: '' });
+  const [alertModal, setAlertModal] = useState<{ isOpen: boolean, message: string }>({ isOpen: false, message: '' });
 
   // Events List Pagination
   const [eventsPage, setEventsPage] = useState(1);
@@ -72,8 +74,9 @@ export default function WeeklySchedule() {
   // Determine current week index (1 to 21) based on AnnualEvents startDate
   let viewingWeek = 1;
   let currentTheme = '各班自訂';
-  let currentEvents = '';
-  const annualDoc = annualEvents[`${settings.academicYear}_${settings.semester}`];
+  let schoolEventsText = '';
+  const docId = `${settings.academicYear}_${settings.semester}`;
+  const annualDoc = annualEvents[docId];
   if (annualDoc && annualDoc.startDate) {
     const st = new Date(annualDoc.startDate);
     const curr = new Date(currentDate);
@@ -81,11 +84,17 @@ export default function WeeklySchedule() {
     viewingWeek = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7)) + 1;
     if (annualDoc.weeks && annualDoc.weeks[viewingWeek - 1]) {
       currentTheme = annualDoc.weeks[viewingWeek - 1].theme || currentTheme;
-      currentEvents = annualDoc.weeks[viewingWeek - 1].events || '';
+      schoolEventsText = annualDoc.weeks[viewingWeek - 1].events || '';
     }
   }
 
-  const eventsList = currentEvents.split('\n').filter(s => s.trim() !== '');
+  const schoolEventsList = schoolEventsText.split('\n').filter(s => s.trim() !== '');
+  const classEventsList = (classEventsDoc[docId]?.weeks?.[viewingWeek] || []) as string[];
+
+  const combinedEvents = [
+    ...schoolEventsList.map((text, i) => ({ type: 'school' as const, text, originalIndex: i })),
+    ...classEventsList.map((text, i) => ({ type: 'class' as const, text, originalIndex: i }))
+  ];
 
   // Find teachers on leave this week
   const teachersOnLeaveThisWeek: string[] = [];
@@ -134,6 +143,12 @@ export default function WeeklySchedule() {
       snap.docs.forEach(d => { data[d.id] = d.data(); });
       setAnnualEvents(data);
     });
+    
+    const unsubClassEvents = onSnapshot(collection(db, 'bear_classEvents'), (snap) => {
+      const data: Record<string, any> = {};
+      snap.docs.forEach(d => { data[d.id] = d.data(); });
+      setClassEventsDoc(data);
+    });
 
     const unsubAtt = onSnapshot(collection(db, 'bear_attendance'), (snap) => {
       const data: Record<string, any> = {};
@@ -150,6 +165,7 @@ export default function WeeklySchedule() {
       unsubLeaves();
       unsubSettings();
       unsubAnnual();
+      unsubClassEvents();
       unsubAtt();
       unsubBulletin();
     };
@@ -195,7 +211,7 @@ export default function WeeklySchedule() {
       await setDoc(doc(db, 'bear_scheduleEntries', `${date}_0`), data, { merge: true });
     } catch (error) {
       console.error(error);
-      alert('儲存失敗');
+      setAlertModal({ isOpen: true, message: '儲存日誌失敗' });
     }
   };
 
@@ -239,7 +255,25 @@ export default function WeeklySchedule() {
   };
 
   const sortBulletinByDate = () => {
-    const sorted = [...bulletinNotes].sort((a, b) => a.createdAt - b.createdAt);
+    const parseDate = (text: string) => {
+      const m = text.match(/^(\d{2})\/(\d{2})/);
+      if (m) {
+        const d = new Date();
+        d.setMonth(parseInt(m[1], 10) - 1, parseInt(m[2], 10));
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      }
+      return null;
+    };
+
+    const sorted = [...bulletinNotes].sort((a, b) => {
+      const da = parseDate(a.text);
+      const db = parseDate(b.text);
+      if (da && db) return da - db;
+      if (da) return -1;
+      if (db) return 1;
+      return a.createdAt - b.createdAt;
+    });
     setBulletinNotes(sorted);
     saveBulletin(sorted);
   };
@@ -284,19 +318,16 @@ export default function WeeklySchedule() {
 
   const saveEventAction = async () => {
     const { isEditing, editingIndex, text, initialDateStr } = eventInputModal;
-    if (!text.trim() && !initialDateStr.trim()) { alert('請輸入活動內容'); return; }
+    if (!text.trim() && !initialDateStr.trim()) { 
+      setAlertModal({ isOpen: true, message: '請輸入活動內容' });
+      return; 
+    }
 
     const finalEventText = isEditing ? text : `${initialDateStr}${text}`;
     
-    const docId = `${settings.academicYear}_${settings.semester}`;
-    const annualDoc = annualEvents[docId];
-    if (!annualDoc || !annualDoc.weeks || !annualDoc.weeks[viewingWeek - 1]) {
-      alert('找不到該學期的年度計畫，請先至年度行事曆設定開學日期');
-      return;
-    }
-
-    const newWeeks = [...annualDoc.weeks];
-    const currentList = [...eventsList];
+    const existingDoc = classEventsDoc[docId] || {};
+    const existingWeeks = existingDoc.weeks || {};
+    const currentList = [...classEventsList];
     
     if (isEditing && editingIndex !== -1) {
       currentList[editingIndex] = finalEventText;
@@ -304,31 +335,44 @@ export default function WeeklySchedule() {
       currentList.push(finalEventText);
     }
     
-    newWeeks[viewingWeek - 1].events = currentList.join('\n');
+    const newDocData = {
+      ...existingDoc,
+      weeks: {
+        ...existingWeeks,
+        [viewingWeek]: currentList
+      }
+    };
     
     try {
-      await setDoc(doc(db, 'bear_annualEvents', docId), { weeks: newWeeks }, { merge: true });
+      await setDoc(doc(db, 'bear_classEvents', docId), newDocData, { merge: true });
       setEventInputModal({ isOpen: false, initialDateStr: '', isEditing: false, editingIndex: -1, text: '' });
+      setAlertModal({ isOpen: true, message: '活動儲存成功！' });
     } catch(e) {
-      alert('儲存活動失敗');
+      setAlertModal({ isOpen: true, message: '儲存活動失敗，請稍後再試。' });
     }
   };
 
   const executeDeleteEvent = async () => {
     if (confirmDeleteEventIndex === null) return;
-    const docId = `${settings.academicYear}_${settings.semester}`;
-    const annualDoc = annualEvents[docId];
-    if (annualDoc && annualDoc.weeks && annualDoc.weeks[viewingWeek - 1]) {
-      const newWeeks = [...annualDoc.weeks];
-      const currentList = [...eventsList];
-      currentList.splice(confirmDeleteEventIndex, 1);
-      newWeeks[viewingWeek - 1].events = currentList.join('\n');
-      try {
-        await setDoc(doc(db, 'bear_annualEvents', docId), { weeks: newWeeks }, { merge: true });
-        setConfirmDeleteEventIndex(null);
-      } catch(e) {
-        alert('刪除活動失敗');
+    const existingDoc = classEventsDoc[docId] || {};
+    const existingWeeks = existingDoc.weeks || {};
+    const currentList = [...classEventsList];
+    
+    currentList.splice(confirmDeleteEventIndex, 1);
+    
+    const newDocData = {
+      ...existingDoc,
+      weeks: {
+        ...existingWeeks,
+        [viewingWeek]: currentList
       }
+    };
+    
+    try {
+      await setDoc(doc(db, 'bear_classEvents', docId), newDocData, { merge: true });
+      setConfirmDeleteEventIndex(null);
+    } catch(e) {
+      setAlertModal({ isOpen: true, message: '刪除活動失敗，請稍後再試。' });
     }
   }
 
@@ -458,6 +502,14 @@ export default function WeeklySchedule() {
         onConfirm={executeDeleteEvent}
         onCancel={() => setConfirmDeleteEventIndex(null)}
       />
+      <ConfirmModal 
+        isOpen={alertModal.isOpen}
+        type="alert"
+        title="系統提示"
+        message={alertModal.message}
+        onConfirm={() => setAlertModal({ isOpen: false, message: '' })}
+        onCancel={() => setAlertModal({ isOpen: false, message: '' })}
+      />
 
       <AnimatePresence>
         {calendarActionModal.isOpen && (
@@ -578,28 +630,35 @@ export default function WeeklySchedule() {
                   </div>
                   
                   <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2 min-h-[140px]">
-                     {eventsList.length === 0 ? (
+                     {combinedEvents.length === 0 ? (
                        <div className="text-white/30 italic text-center mt-6 font-bold">尚無重點活動</div>
                      ) : (
-                       eventsList.slice((eventsPage - 1) * eventsPageSize, eventsPage * eventsPageSize).map((ev, i) => {
+                       combinedEvents.slice((eventsPage - 1) * eventsPageSize, eventsPage * eventsPageSize).map((ev, i) => {
                          const actualIndex = (eventsPage - 1) * eventsPageSize + i;
                          return (
                            <div key={actualIndex} className="bg-white/5 border border-white/10 rounded p-2 flex justify-between items-center group transition-colors hover:bg-white/10">
                              <div className="flex gap-2 items-start text-sm">
                                <span className="text-yellow-300 font-bold">{actualIndex + 1}.</span>
-                               <span className="text-white/90 whitespace-pre-wrap">{ev}</span>
+                               {ev.type === 'school' ? (
+                                 <span className="bg-purple-600/50 text-purple-200 px-1.5 py-0.5 rounded text-[10px] font-bold border border-purple-400/50 mt-0.5 whitespace-nowrap">園所</span>
+                               ) : (
+                                 <span className="bg-blue-600/50 text-blue-200 px-1.5 py-0.5 rounded text-[10px] font-bold border border-blue-400/50 mt-0.5 whitespace-nowrap">班級</span>
+                               )}
+                               <span className="text-white/90 whitespace-pre-wrap">{ev.text}</span>
                              </div>
-                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
-                               <button onClick={() => setEventInputModal({isOpen: true, initialDateStr: '', isEditing: true, editingIndex: actualIndex, text: ev})} className="text-blue-300 hover:text-white p-1 rounded hover:bg-blue-500/50" title="修改"><PenTool className="w-4 h-4" /></button>
-                               <button onClick={() => setConfirmDeleteEventIndex(actualIndex)} className="text-red-300 hover:text-white p-1 rounded hover:bg-red-500/50" title="刪除"><Trash2 className="w-4 h-4" /></button>
-                             </div>
+                             {ev.type === 'class' && (
+                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
+                                 <button onClick={() => setEventInputModal({isOpen: true, initialDateStr: '', isEditing: true, editingIndex: ev.originalIndex, text: ev.text})} className="text-blue-300 hover:text-white p-1 rounded hover:bg-blue-500/50" title="修改"><PenTool className="w-4 h-4" /></button>
+                                 <button onClick={() => setConfirmDeleteEventIndex(ev.originalIndex)} className="text-red-300 hover:text-white p-1 rounded hover:bg-red-500/50" title="刪除"><Trash2 className="w-4 h-4" /></button>
+                               </div>
+                             )}
                            </div>
                          )
                        })
                      )}
                   </div>
                   
-                  {eventsList.length > 0 && (
+                  {combinedEvents.length > 0 && (
                     <div className="flex justify-between items-center mt-4 pt-3 border-t border-white/10 text-xs">
                        <div className="flex gap-2 items-center">
                          <select value={eventsPageSize} onChange={e => {setEventsPageSize(Number(e.target.value)); setEventsPage(1);}} className="chalk-input bg-black/50 py-0.5 text-xs text-yellow-100 font-bold px-1">
@@ -610,8 +669,8 @@ export default function WeeklySchedule() {
                        </div>
                        <div className="flex gap-2 items-center font-bold">
                          <button onClick={() => setEventsPage(p => Math.max(1, p - 1))} disabled={eventsPage === 1} className="chalk-btn py-0.5 px-2 text-xs bg-white/10 disabled:opacity-50">上一頁</button>
-                         <span className="text-yellow-200">{eventsPage} / {Math.ceil(eventsList.length / eventsPageSize) || 1}</span>
-                         <button onClick={() => setEventsPage(p => Math.min(Math.ceil(eventsList.length / eventsPageSize), p + 1))} disabled={eventsPage === Math.ceil(eventsList.length / eventsPageSize)} className="chalk-btn py-0.5 px-2 text-xs bg-white/10 disabled:opacity-50">下一頁</button>
+                         <span className="text-yellow-200">{eventsPage} / {Math.ceil(combinedEvents.length / eventsPageSize) || 1}</span>
+                         <button onClick={() => setEventsPage(p => Math.min(Math.ceil(combinedEvents.length / eventsPageSize), p + 1))} disabled={eventsPage === Math.ceil(combinedEvents.length / eventsPageSize)} className="chalk-btn py-0.5 px-2 text-xs bg-white/10 disabled:opacity-50">下一頁</button>
                        </div>
                     </div>
                   )}
