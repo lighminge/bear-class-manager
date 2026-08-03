@@ -161,19 +161,25 @@ export default function StudentsManagement() {
     }
   };
 
+  const [confirmGlobalYearOpen, setConfirmGlobalYearOpen] = useState(false);
+
   const handleSetGlobalYear = async () => {
     if (filterYear === 'ALL' || !filterYear) {
       alert('請先選擇一個特定的學年，再設為系統預設！');
       return;
     }
-    if (confirm(`確定要將系統的「全域預設學年」設定為 ${filterYear} 學年嗎？\n這會連動改變點名簿、藏書借閱等其他工具的預設學年。`)) {
-      try {
-        await setDoc(doc(db, 'bear_settings', 'main'), { academicYear: filterYear }, { merge: true });
-        alert(`設定成功！目前系統預設學年已更新為：${filterYear} 學年`);
-      } catch (e) {
-        console.error(e);
-        alert('設定失敗');
-      }
+    setConfirmGlobalYearOpen(true);
+  };
+
+  const executeSetGlobalYear = async () => {
+    try {
+      await setDoc(doc(db, 'bear_settings', 'main'), { academicYear: filterYear }, { merge: true });
+      alert(`設定成功！目前系統預設學年已更新為：${filterYear} 學年`);
+    } catch (e) {
+      console.error(e);
+      alert('設定失敗');
+    } finally {
+      setConfirmGlobalYearOpen(false);
     }
   };
 
@@ -199,6 +205,14 @@ export default function StudentsManagement() {
         message="確定要刪除這筆學生資料嗎？此動作無法復原。"
         onConfirm={handleDelete}
         onCancel={() => setConfirmDeleteId(null)}
+      />
+      <ConfirmModal 
+        isOpen={confirmGlobalYearOpen}
+        type="confirm"
+        title="設為系統預設學年"
+        message={`確定要將系統的「全域預設學年」設定為 ${filterYear} 學年嗎？\n這會連動改變點名簿、藏書借閱等其他工具的預設學年。`}
+        onConfirm={executeSetGlobalYear}
+        onCancel={() => setConfirmGlobalYearOpen(false)}
       />
 
       {/* Filter Section */}

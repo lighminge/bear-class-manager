@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Calendar as CalendarIcon, Loader2, FileText, Plus, Trash2, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, FileText, Plus, Trash2, X, PenTool } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -45,7 +45,14 @@ export default function WeeklySchedule() {
   const [loading, setLoading] = useState(true);
 
   const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState<string | null>(null);
+  const [confirmDeleteEventIndex, setConfirmDeleteEventIndex] = useState<number | null>(null);
+  
   const [calendarActionModal, setCalendarActionModal] = useState<{ isOpen: boolean, dateStr: string }>({ isOpen: false, dateStr: '' });
+  const [eventInputModal, setEventInputModal] = useState<{ isOpen: boolean, initialDateStr: string, isEditing: boolean, editingIndex: number, text: string }>({ isOpen: false, initialDateStr: '', isEditing: false, editingIndex: -1, text: '' });
+
+  // Events List Pagination
+  const [eventsPage, setEventsPage] = useState(1);
+  const [eventsPageSize, setEventsPageSize] = useState(3);
 
   // Generate week dates (Monday to Friday)
   const getWeekDays = (dateStr: string) => {
@@ -77,6 +84,8 @@ export default function WeeklySchedule() {
       currentEvents = annualDoc.weeks[viewingWeek - 1].events || '';
     }
   }
+
+  const eventsList = currentEvents.split('\n').filter(s => s.trim() !== '');
 
   // Find teachers on leave this week
   const teachersOnLeaveThisWeek: string[] = [];
@@ -146,7 +155,7 @@ export default function WeeklySchedule() {
     };
   }, []);
 
-  // Fetch live weather when date changes (for empty weather fields)
+  // Fetch live weather when date changes
   useEffect(() => {
     const fetchWeather = async () => {
       try {
@@ -194,6 +203,7 @@ export default function WeeklySchedule() {
     const d = new Date(currentDate);
     d.setDate(d.getDate() + (dir * 7));
     setCurrentDate(d.toISOString().split('T')[0]);
+    setEventsPage(1); // Reset page on week change
   };
 
   // Bulletin Board Functions
@@ -228,6 +238,12 @@ export default function WeeklySchedule() {
     }
   };
 
+  const sortBulletinByDate = () => {
+    const sorted = [...bulletinNotes].sort((a, b) => a.createdAt - b.createdAt);
+    setBulletinNotes(sorted);
+    saveBulletin(sorted);
+  };
+
   // Drag and Drop handlers
   const handleDragStart = (e: React.DragEvent, index: number) => {
     e.dataTransfer.setData('text/plain', index.toString());
@@ -253,34 +269,68 @@ export default function WeeklySchedule() {
     setBulletinNotes(newNotes); // optimistic
   };
 
-  // Calendar click actions
+  // Calendar & Events click actions
   const handleActionAddNote = () => {
     const dateFormatted = calendarActionModal.dateStr.substring(5).replace('-', '/');
     addNote(`${dateFormatted}: `);
     setCalendarActionModal({ isOpen: false, dateStr: '' });
   };
 
-  const handleActionAddEvent = async () => {
+  const handleActionAddEvent = () => {
     const dateFormatted = calendarActionModal.dateStr.substring(5).replace('-', '/');
-    const eventText = window.prompt(`請輸入 ${dateFormatted} 的活動內容：`);
-    if (eventText) {
-      const docId = `${settings.academicYear}_${settings.semester}`;
-      const annualDoc = annualEvents[docId];
-      if (annualDoc && annualDoc.weeks) {
-        const newWeeks = [...annualDoc.weeks];
-        if (newWeeks[viewingWeek - 1]) {
-           const existing = newWeeks[viewingWeek - 1].events || '';
-           newWeeks[viewingWeek - 1].events = existing ? `${existing}\n${dateFormatted} ${eventText}` : `${dateFormatted} ${eventText}`;
-           try {
-             await setDoc(doc(db, 'bear_annualEvents', docId), { weeks: newWeeks }, { merge: true });
-           } catch(e) { alert('儲存活動失敗'); }
-        }
-      } else {
-        alert('找不到該學期的年度計畫，請先至年度行事曆設定');
+    setCalendarActionModal({ isOpen: false, dateStr: '' });
+    setEventInputModal({ isOpen: true, initialDateStr: `${dateFormatted} `, isEditing: false, editingIndex: -1, text: '' });
+  };
+
+  const saveEventAction = async () => {
+    const { isEditing, editingIndex, text, initialDateStr } = eventInputModal;
+    if (!text.trim() && !initialDateStr.trim()) { alert('請輸入活動內容'); return; }
+
+    const finalEventText = isEditing ? text : `${initialDateStr}${text}`;
+    
+    const docId = `${settings.academicYear}_${settings.semester}`;
+    const annualDoc = annualEvents[docId];
+    if (!annualDoc || !annualDoc.weeks || !annualDoc.weeks[viewingWeek - 1]) {
+      alert('找不到該學期的年度計畫，請先至年度行事曆設定開學日期');
+      return;
+    }
+
+    const newWeeks = [...annualDoc.weeks];
+    const currentList = [...eventsList];
+    
+    if (isEditing && editingIndex !== -1) {
+      currentList[editingIndex] = finalEventText;
+    } else {
+      currentList.push(finalEventText);
+    }
+    
+    newWeeks[viewingWeek - 1].events = currentList.join('\n');
+    
+    try {
+      await setDoc(doc(db, 'bear_annualEvents', docId), { weeks: newWeeks }, { merge: true });
+      setEventInputModal({ isOpen: false, initialDateStr: '', isEditing: false, editingIndex: -1, text: '' });
+    } catch(e) {
+      alert('儲存活動失敗');
+    }
+  };
+
+  const executeDeleteEvent = async () => {
+    if (confirmDeleteEventIndex === null) return;
+    const docId = `${settings.academicYear}_${settings.semester}`;
+    const annualDoc = annualEvents[docId];
+    if (annualDoc && annualDoc.weeks && annualDoc.weeks[viewingWeek - 1]) {
+      const newWeeks = [...annualDoc.weeks];
+      const currentList = [...eventsList];
+      currentList.splice(confirmDeleteEventIndex, 1);
+      newWeeks[viewingWeek - 1].events = currentList.join('\n');
+      try {
+        await setDoc(doc(db, 'bear_annualEvents', docId), { weeks: newWeeks }, { merge: true });
+        setConfirmDeleteEventIndex(null);
+      } catch(e) {
+        alert('刪除活動失敗');
       }
     }
-    setCalendarActionModal({ isOpen: false, dateStr: '' });
-  };
+  }
 
   const exportToWord = () => {
     let htmlContent = `
@@ -400,6 +450,14 @@ export default function WeeklySchedule() {
         onConfirm={executeDeleteNote}
         onCancel={() => setConfirmDeleteNoteId(null)}
       />
+      <ConfirmModal 
+        isOpen={confirmDeleteEventIndex !== null}
+        type="confirm"
+        title="確認刪除活動"
+        message="確定要刪除這筆活動嗎？此動作無法復原。"
+        onConfirm={executeDeleteEvent}
+        onCancel={() => setConfirmDeleteEventIndex(null)}
+      />
 
       <AnimatePresence>
         {calendarActionModal.isOpen && (
@@ -426,6 +484,40 @@ export default function WeeklySchedule() {
                 <button onClick={handleActionAddNote} className="chalk-btn bg-green-600/80 hover:bg-green-500 py-3 text-lg font-bold shadow-lg w-full justify-center">
                   📝 新增便利貼
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {eventInputModal.isOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="chalk-box w-full max-w-md relative bg-[#2b5b3f]"
+            >
+              <h2 className="text-xl font-bold mb-4 text-yellow-300 flex items-center gap-2 border-b border-white/20 pb-2">
+                {eventInputModal.isEditing ? <PenTool className="w-5 h-5"/> : <Plus className="w-5 h-5"/>} 
+                {eventInputModal.isEditing ? '修改活動內容' : '新增重點活動'}
+              </h2>
+              
+              <div className="mb-4">
+                {!eventInputModal.isEditing && eventInputModal.initialDateStr && (
+                  <div className="text-sm text-yellow-100 mb-2 font-bold">自動帶入日期：{eventInputModal.initialDateStr}</div>
+                )}
+                <textarea 
+                  value={eventInputModal.text}
+                  onChange={(e) => setEventInputModal({ ...eventInputModal, text: e.target.value })}
+                  className="chalk-input w-full min-h-[100px] resize-none bg-white text-black"
+                  placeholder={eventInputModal.isEditing ? "請輸入修改的活動內容..." : "請輸入後續的活動內容..."}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setEventInputModal({ isOpen: false, initialDateStr: '', isEditing: false, editingIndex: -1, text: '' })} className="chalk-btn bg-black/20 text-white hover:bg-black/40">取消</button>
+                <button onClick={saveEventAction} className="chalk-btn bg-yellow-600/80 hover:bg-yellow-500 font-bold px-6">儲存</button>
               </div>
             </motion.div>
           </div>
@@ -477,11 +569,52 @@ export default function WeeklySchedule() {
                   </div>
                 </div>
                 
-                <div className="bg-black/20 border border-white/20 rounded-xl p-5 shadow-inner flex flex-col">
-                  <h3 className="text-yellow-200 font-bold mb-4 text-lg border-b border-white/10 pb-2">📌 本週重點活動</h3>
-                  <div className="flex-1 overflow-y-auto custom-scrollbar text-white/90 whitespace-pre-wrap text-base font-bold leading-relaxed">
-                    {currentEvents || <span className="text-white/30 italic">尚無重點活動</span>}
+                <div className="bg-black/20 border border-white/20 rounded-xl p-5 shadow-inner flex flex-col relative h-full">
+                  <div className="flex justify-between items-center border-b border-white/10 pb-2 mb-4">
+                    <h3 className="text-yellow-200 font-bold text-lg">📌 本週重點活動</h3>
+                    <button onClick={() => setEventInputModal({isOpen: true, initialDateStr: '', isEditing: false, editingIndex: -1, text: ''})} className="chalk-btn bg-green-600/80 hover:bg-green-500 text-xs px-2 py-1 font-bold">
+                      <Plus className="w-3 h-3 inline mr-1"/>新增活動
+                    </button>
                   </div>
+                  
+                  <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2 min-h-[140px]">
+                     {eventsList.length === 0 ? (
+                       <div className="text-white/30 italic text-center mt-6 font-bold">尚無重點活動</div>
+                     ) : (
+                       eventsList.slice((eventsPage - 1) * eventsPageSize, eventsPage * eventsPageSize).map((ev, i) => {
+                         const actualIndex = (eventsPage - 1) * eventsPageSize + i;
+                         return (
+                           <div key={actualIndex} className="bg-white/5 border border-white/10 rounded p-2 flex justify-between items-center group transition-colors hover:bg-white/10">
+                             <div className="flex gap-2 items-start text-sm">
+                               <span className="text-yellow-300 font-bold">{actualIndex + 1}.</span>
+                               <span className="text-white/90 whitespace-pre-wrap">{ev}</span>
+                             </div>
+                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
+                               <button onClick={() => setEventInputModal({isOpen: true, initialDateStr: '', isEditing: true, editingIndex: actualIndex, text: ev})} className="text-blue-300 hover:text-white p-1 rounded hover:bg-blue-500/50" title="修改"><PenTool className="w-4 h-4" /></button>
+                               <button onClick={() => setConfirmDeleteEventIndex(actualIndex)} className="text-red-300 hover:text-white p-1 rounded hover:bg-red-500/50" title="刪除"><Trash2 className="w-4 h-4" /></button>
+                             </div>
+                           </div>
+                         )
+                       })
+                     )}
+                  </div>
+                  
+                  {eventsList.length > 0 && (
+                    <div className="flex justify-between items-center mt-4 pt-3 border-t border-white/10 text-xs">
+                       <div className="flex gap-2 items-center">
+                         <select value={eventsPageSize} onChange={e => {setEventsPageSize(Number(e.target.value)); setEventsPage(1);}} className="chalk-input bg-black/50 py-0.5 text-xs text-yellow-100 font-bold px-1">
+                           <option value={3}>3 筆/頁</option>
+                           <option value={6}>6 筆/頁</option>
+                           <option value={9}>9 筆/頁</option>
+                         </select>
+                       </div>
+                       <div className="flex gap-2 items-center font-bold">
+                         <button onClick={() => setEventsPage(p => Math.max(1, p - 1))} disabled={eventsPage === 1} className="chalk-btn py-0.5 px-2 text-xs bg-white/10 disabled:opacity-50">上一頁</button>
+                         <span className="text-yellow-200">{eventsPage} / {Math.ceil(eventsList.length / eventsPageSize) || 1}</span>
+                         <button onClick={() => setEventsPage(p => Math.min(Math.ceil(eventsList.length / eventsPageSize), p + 1))} disabled={eventsPage === Math.ceil(eventsList.length / eventsPageSize)} className="chalk-btn py-0.5 px-2 text-xs bg-white/10 disabled:opacity-50">下一頁</button>
+                       </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -491,9 +624,14 @@ export default function WeeklySchedule() {
                   <h3 className="text-yellow-200 font-bold text-xl flex items-center gap-2">
                     📝 班級公布欄
                   </h3>
-                  <button onClick={() => addNote('')} className="chalk-btn bg-green-600/80 hover:bg-green-500 py-1.5 px-4 text-sm flex items-center gap-1 shadow-lg font-bold">
-                    <Plus className="w-4 h-4" /> 新增便利貼
-                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={sortBulletinByDate} className="chalk-btn bg-blue-600/80 hover:bg-blue-500 py-1.5 px-3 text-sm flex items-center shadow-lg font-bold">
+                      依日期排序
+                    </button>
+                    <button onClick={() => addNote('')} className="chalk-btn bg-green-600/80 hover:bg-green-500 py-1.5 px-3 text-sm flex items-center gap-1 shadow-lg font-bold">
+                      <Plus className="w-4 h-4" /> 新增便利貼
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="flex flex-wrap overflow-y-auto custom-scrollbar flex-1 content-start -mx-2 px-2">
