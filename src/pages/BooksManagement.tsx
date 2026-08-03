@@ -140,7 +140,13 @@ export default function BooksManagement() {
       }
     });
 
-    return () => { unsubBooks(); unsubStudents(); unsubArr(); };
+    const unsubSettings = onSnapshot(doc(db, 'bear_settings', 'main'), (snap) => {
+      if (snap.exists() && snap.data().academicYear) {
+         setAcademicYear(prev => prev === '114' ? snap.data().academicYear : prev);
+      }
+    });
+
+    return () => { unsubBooks(); unsubStudents(); unsubArr(); unsubSettings(); };
   }, []);
 
   // --- List Tab Logic ---

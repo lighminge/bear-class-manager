@@ -161,6 +161,22 @@ export default function StudentsManagement() {
     }
   };
 
+  const handleSetGlobalYear = async () => {
+    if (filterYear === 'ALL' || !filterYear) {
+      alert('請先選擇一個特定的學年，再設為系統預設！');
+      return;
+    }
+    if (confirm(`確定要將系統的「全域預設學年」設定為 ${filterYear} 學年嗎？\n這會連動改變點名簿、藏書借閱等其他工具的預設學年。`)) {
+      try {
+        await setDoc(doc(db, 'bear_settings', 'main'), { academicYear: filterYear }, { merge: true });
+        alert(`設定成功！目前系統預設學年已更新為：${filterYear} 學年`);
+      } catch (e) {
+        console.error(e);
+        alert('設定失敗');
+      }
+    }
+  };
+
   // Filtered Students
   const displayStudents = students
     .filter(s => filterYear === 'ALL' || s.academicYear === filterYear)
@@ -190,12 +206,21 @@ export default function StudentsManagement() {
         <div className="flex flex-wrap gap-4 items-end">
           <div>
             <label className="block text-yellow-200 text-sm mb-1">目前所在學年</label>
-            <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="chalk-input text-black bg-white w-32 font-bold">
-              <option value="ALL">全部學年</option>
-              {['112', '113', '114', '115', '116', '117', '118'].map(y => (
-                <option key={y} value={y}>{y}學年</option>
-              ))}
-            </select>
+            <div className="flex gap-2">
+              <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="chalk-input text-black bg-white w-32 font-bold">
+                <option value="ALL">全部學年</option>
+                {['112', '113', '114', '115', '116', '117', '118'].map(y => (
+                  <option key={y} value={y}>{y}學年</option>
+                ))}
+              </select>
+              <button 
+                onClick={handleSetGlobalYear}
+                title="將此學年設為系統預設"
+                className="chalk-btn bg-yellow-600/80 hover:bg-yellow-500 py-1 px-3 text-sm shadow font-bold"
+              >
+                設為系統預設
+              </button>
+            </div>
           </div>
           <div>
             <label className="block text-yellow-200 text-sm mb-1">學生姓名</label>

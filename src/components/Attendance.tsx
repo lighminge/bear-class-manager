@@ -12,6 +12,11 @@ export default function Attendance() {
   const [year, setYear] = useState('114');
 
   useEffect(() => {
+    const unsubSettings = onSnapshot(doc(db, 'bear_settings', 'main'), (snap) => {
+      if (snap.exists() && snap.data().academicYear) {
+         setYear(prev => prev === '114' ? snap.data().academicYear : prev);
+      }
+    });
     const unsubStudents = onSnapshot(collection(db, 'bear_students'), (snap) => {
       const studs = snap.docs
         .map(d => ({ id: d.id, ...(d.data() as any) }))
@@ -19,7 +24,7 @@ export default function Attendance() {
         .sort((a: any, b: any) => Number(a.seatNo) - Number(b.seatNo));
       setStudents(studs);
     });
-    return () => unsubStudents();
+    return () => { unsubStudents(); unsubSettings(); };
   }, [year]);
 
   useEffect(() => {
