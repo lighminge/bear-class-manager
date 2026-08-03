@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Calendar as CalendarIcon, Loader2, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, FileText, Plus, Trash2 } from 'lucide-react';
 
 interface WeeklyEntry {
   weather: string;
@@ -11,6 +11,20 @@ interface WeeklyEntry {
   ane: string;
   com: string;
 }
+
+interface BulletinNote {
+  id: string;
+  text: string;
+  color: string;
+  createdAt: number;
+}
+
+const POST_IT_COLORS = [
+  'bg-yellow-200 text-black',
+  'bg-pink-200 text-black',
+  'bg-blue-200 text-black',
+  'bg-green-200 text-black'
+];
 
 export default function WeeklySchedule() {
   const [currentDate, setCurrentDate] = useState(() => {
@@ -25,6 +39,7 @@ export default function WeeklySchedule() {
   const [attendance, setAttendance] = useState<Record<string, any>>({});
   const [settings, setSettings] = useState<any>({ leadTeacher: '主教', coTeacher: '協同', academicYear: '114', semester: '上學期' });
   const [annualEvents, setAnnualEvents] = useState<Record<string, any>>({});
+  const [bulletinNotes, setBulletinNotes] = useState<BulletinNote[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Generate week dates (Monday to Friday)
@@ -112,12 +127,17 @@ export default function WeeklySchedule() {
       setAttendance(data);
     });
 
+    const unsubBulletin = onSnapshot(doc(db, 'bear_settings', 'bulletin'), (snap) => {
+      if (snap.exists()) setBulletinNotes(snap.data().notes || []);
+    });
+
     return () => {
       unsubEntries();
       unsubLeaves();
       unsubSettings();
       unsubAnnual();
       unsubAtt();
+      unsubBulletin();
     };
   }, []);
 
@@ -169,6 +189,37 @@ export default function WeeklySchedule() {
     const d = new Date(currentDate);
     d.setDate(d.getDate() + (dir * 7));
     setCurrentDate(d.toISOString().split('T')[0]);
+  };
+
+  // Bulletin Board Functions
+  const saveBulletin = async (newNotes: BulletinNote[]) => {
+    try {
+      await setDoc(doc(db, 'bear_settings', 'bulletin'), { notes: newNotes }, { merge: true });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const addNote = () => {
+    const randomColor = POST_IT_COLORS[Math.floor(Math.random() * POST_IT_COLORS.length)];
+    const newNotes = [...bulletinNotes, { id: Date.now().toString(), text: '', color: randomColor, createdAt: Date.now() }];
+    saveBulletin(newNotes);
+  };
+
+  const updateNote = (id: string, text: string) => {
+    const newNotes = bulletinNotes.map(n => n.id === id ? { ...n, text } : n);
+    setBulletinNotes(newNotes); // optimistic update
+  };
+
+  const blurNote = () => {
+    saveBulletin(bulletinNotes);
+  };
+
+  const deleteNote = (id: string) => {
+    if(window.confirm('確定要撕下這張便利貼嗎？')) {
+      const newNotes = bulletinNotes.filter(n => n.id !== id);
+      saveBulletin(newNotes);
+    }
   };
 
   const exportToWord = () => {
@@ -236,30 +287,37 @@ export default function WeeklySchedule() {
     const daysInMonth = new Date(y, m + 1, 0).getDate();
 
     return (
-      <div className="bg-black/30 p-2 rounded border border-white/20 text-xs w-48 shadow-inner">
-        <div className="text-center font-bold text-yellow-300 mb-2">{m + 1}月</div>
-        <div className="grid grid-cols-7 gap-1 text-center text-white/50 mb-1">
+      <div className="bg-black/30 p-4 rounded-xl border border-white/20 w-full shadow-inner mt-4">
+        <div className="text-center font-bold text-yellow-300 text-xl mb-4">{m + 1}月 月曆</div>
+        <div className="grid grid-cols-7 gap-2 text-center text-white/50 mb-2 font-bold">
           {['日', '一', '二', '三', '四', '五', '六'].map(d => <div key={d}>{d}</div>)}
         </div>
-        <div className="grid grid-cols-7 gap-1 text-center">
+        <div className="grid grid-cols-7 gap-2 text-center text-lg">
           {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
           {Array.from({ length: daysInMonth }).map((_, i) => {
             const d = i + 1;
             const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const isWeekDay = weekDays.includes(dateStr);
             const teacherLeave = leaves[dateStr];
-            let classes = "rounded-sm py-0.5 ";
-            if (teacherLeave === displayLeadTeacher) classes += "bg-purple-600 font-bold border border-purple-300 text-[10px] leading-tight";
-            else if (teacherLeave === displayCoTeacher) classes += "bg-blue-600 font-bold border border-blue-300 text-[10px] leading-tight";
-            else if (isWeekDay) classes += "bg-yellow-500/30 font-bold outline outline-1 outline-yellow-400";
-            else classes += "text-white/80";
+            let classes = "rounded-md py-1.5 transition-colors ";
+            
+            if (teacherLeave === displayLeadTeacher) classes += "bg-purple-600 font-bold border border-purple-300 shadow-lg text-sm flex items-center justify-center";
+            else if (teacherLeave === displayCoTeacher) classes += "bg-blue-600 font-bold border border-blue-300 shadow-lg text-sm flex items-center justify-center";
+            else if (isWeekDay) classes += "bg-yellow-500/30 font-bold outline outline-2 outline-yellow-400 flex items-center justify-center";
+            else classes += "text-white/80 hover:bg-white/10 flex items-center justify-center";
 
             return (
               <div key={d} className={classes} title={teacherLeave ? `${teacherLeave}請假` : ''}>
-                {teacherLeave ? teacherLeave[0] : d}
+                {teacherLeave ? <span className="text-[10px] leading-none whitespace-nowrap">{teacherLeave[0]}假</span> : d}
               </div>
             );
           })}
+        </div>
+        
+        <div className="mt-6 flex justify-center gap-4 text-xs font-bold text-white/70">
+          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-yellow-500/30 border border-yellow-400 rounded-sm"></div>本週</div>
+          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-purple-600 border border-purple-300 rounded-sm"></div>主班請假</div>
+          <div className="flex items-center gap-1"><div className="w-3 h-3 bg-blue-600 border border-blue-300 rounded-sm"></div>協同請假</div>
         </div>
       </div>
     );
@@ -268,151 +326,202 @@ export default function WeeklySchedule() {
   const dayNames = ['星期一', '星期二', '星期三', '星期四', '星期五'];
 
   return (
-    <div className="max-w-[1400px] mx-auto animate-fade-in space-y-6">
-      <div className="chalk-box flex flex-col md:flex-row gap-4 justify-between items-start">
-        <div className="flex gap-4">
-          <CalendarIcon className="w-8 h-8 text-yellow-300 shrink-0" />
-          <div>
-            <h2 className="text-2xl font-bold mb-2">每週排程行事曆 - 第 {viewingWeek} 週</h2>
-            <div className="flex gap-2">
-              <button onClick={() => navWeek(-1)} className="chalk-btn py-1 px-3 text-sm">上一週</button>
-              <input 
-                type="date" 
-                value={currentDate} 
-                onChange={(e) => setCurrentDate(e.target.value)} 
-                className="chalk-input bg-white/10 px-2 rounded py-0"
-              />
-              <button onClick={() => navWeek(1)} className="chalk-btn py-1 px-3 text-sm">下一週</button>
-            </div>
-            <div className="mt-4 flex gap-4">
-               {renderMiniMonthCalendar()}
-               <div className="bg-black/20 border border-white/20 rounded p-3 text-sm flex flex-col justify-center gap-2 w-48">
-                 <div><span className="text-yellow-200">主班老師：</span><span className="font-bold">{displayLeadTeacher}</span></div>
-                 <div><span className="text-yellow-200">協同老師：</span><span className="font-bold">{displayCoTeacher}</span></div>
-               </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex flex-col gap-3 w-full md:w-auto">
-          <button onClick={exportToWord} className="chalk-btn bg-blue-600/70 hover:bg-blue-500 shadow-lg justify-center w-full">
-            <FileText className="w-5 h-5" />
-            匯出本週紀錄 (Word)
-          </button>
-          <div className="bg-white/10 rounded-xl p-4 border border-white/30 backdrop-blur shadow-lg text-sm text-left flex flex-col gap-2">
-            <div>
-              <div className="text-yellow-200 mb-1 font-bold">🎯 本週教學主題</div>
-              <div className="text-lg font-bold tracking-wider">{currentTheme}</div>
-            </div>
-            {currentEvents && (
-              <div>
-                <div className="text-yellow-200 mb-1 font-bold mt-2">📌 本週重點事項</div>
-                <div className="whitespace-pre-wrap">{currentEvents}</div>
-              </div>
-            )}
-            {teachersOnLeaveThisWeek.length > 0 && (
-              <div>
-                <div className="text-red-300 mb-1 font-bold mt-2">⚠️ 本週請假資訊</div>
-                <div className="text-red-200">
-                  {teachersOnLeaveThisWeek.map((info, idx) => (
-                    <div key={idx}>{info}</div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
+    <div className="max-w-[1400px] mx-auto animate-fade-in space-y-4">
       {loading ? (
         <div className="flex justify-center p-12"><Loader2 className="animate-spin w-12 h-12 text-white/50" /></div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-          {weekDays.map((dateStr, idx) => {
-            const entry = entries[`${dateStr}_0`] || {};
-            const isToday = new Date().toISOString().split('T')[0] === dateStr;
-            const dayAtt = attendance[dateStr] || {};
-            let pCount = 0; let lCount = 0;
-            Object.values(dayAtt).forEach((st: any) => {
-              if (st.status === 'attend') pCount++;
-              else if (st.status !== 'unexcused') lCount++;
-            });
+        <>
+          {/* 上方佈局 (1/3 左側, 2/3 右側) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* 左側 1/3: 選擇週數與大月曆 */}
+            <div className="chalk-box flex flex-col items-center">
+              <div className="flex items-center gap-2 border-b border-white/20 pb-3 mb-4 w-full justify-center">
+                <CalendarIcon className="w-6 h-6 text-yellow-300" />
+                <h2 className="text-2xl font-bold tracking-widest text-center">第 {viewingWeek} 週排程</h2>
+              </div>
+              <div className="flex justify-between gap-2 w-full max-w-sm">
+                <button onClick={() => navWeek(-1)} className="chalk-btn py-2 px-4 text-sm flex-1 font-bold">上一週</button>
+                <input 
+                  type="date" 
+                  value={currentDate} 
+                  onChange={(e) => setCurrentDate(e.target.value)} 
+                  className="chalk-input bg-white/10 px-2 rounded py-0 text-center flex-1 font-bold text-lg"
+                />
+                <button onClick={() => navWeek(1)} className="chalk-btn py-2 px-4 text-sm flex-1 font-bold">下一週</button>
+              </div>
+              <div className="w-full max-w-sm">
+                {renderMiniMonthCalendar()}
+              </div>
+            </div>
 
-            return (
-              <div key={dateStr} className={`chalk-box flex flex-col ${isToday ? 'border-4 border-yellow-400 bg-yellow-600/20' : ''}`}>
-                <div className="text-center font-bold text-lg border-b border-white/20 pb-4 mb-4 flex flex-col items-center">
-                  <div className="flex gap-2 items-center">
-                    <div className={isToday ? 'text-yellow-300' : 'text-white'}>{dayNames[idx]}</div>
-                    <div className={`text-xl ${isToday ? 'text-yellow-300' : 'text-white'}`}>{dateStr.substring(5).replace('-', '/')}</div>
-                  </div>
-                  <div className="text-sm bg-black/40 rounded-lg p-2 mt-3 font-bold text-yellow-300 border-2 border-white/20 shadow-inner w-full">
-                     出勤: <span className="text-green-400">{pCount}</span> 人 | 請假: <span className="text-red-400">{lCount}</span> 人
+            {/* 右側 2/3: 資訊與公布欄 */}
+            <div className="lg:col-span-2 chalk-box flex flex-col gap-6">
+              {/* 教師與活動資訊 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-black/20 border border-white/20 rounded-xl p-5 shadow-inner">
+                  <h3 className="text-yellow-200 font-bold mb-4 text-lg border-b border-white/10 pb-2">👥 本週班級導師</h3>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex justify-between items-center bg-white/5 p-3 rounded shadow">
+                      <span className="text-white/70 font-bold">主班老師</span>
+                      <span className="font-bold text-white tracking-widest text-xl">{displayLeadTeacher}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white/5 p-3 rounded shadow">
+                      <span className="text-white/70 font-bold">協同老師</span>
+                      <span className="font-bold text-white tracking-widest text-xl">{displayCoTeacher}</span>
+                    </div>
                   </div>
                 </div>
                 
-                <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
-                  <div>
-                    <label className="text-xs text-yellow-200">🌤️ 天氣</label>
-                    <input 
-                      type="text" 
-                      value={entry.weather || ''} 
-                      onChange={e => handleFieldChange(dateStr, 'weather', e.target.value)} 
-                      onBlur={() => saveEntry(dateStr)}
-                      className="chalk-input w-full text-sm py-1 bg-black/20 rounded px-2 mt-1 border-b-0"
-                      placeholder="如: 晴朗 28°C" 
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-yellow-200">📖 教學活動</label>
-                    <textarea 
-                      value={entry.act || ''} 
-                      onChange={e => handleFieldChange(dateStr, 'act', e.target.value)}
-                      onBlur={() => saveEntry(dateStr)}
-                      className="w-full bg-black/20 rounded p-2 text-white outline-none focus:bg-white/10 resize-none min-h-[80px] text-sm custom-scrollbar mt-1"
-                      placeholder="教學活動..."
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-yellow-200">🏃 大肌肉活動</label>
-                    <textarea 
-                      value={entry.motor || ''} 
-                      onChange={e => handleFieldChange(dateStr, 'motor', e.target.value)}
-                      onBlur={() => saveEntry(dateStr)}
-                      className="w-full bg-black/20 rounded p-2 text-white outline-none focus:bg-white/10 resize-none min-h-[60px] text-sm custom-scrollbar mt-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-yellow-200">🧐 教學省思</label>
-                    <textarea 
-                      value={entry.ref || ''} 
-                      onChange={e => handleFieldChange(dateStr, 'ref', e.target.value)}
-                      onBlur={() => saveEntry(dateStr)}
-                      className="w-full bg-black/20 rounded p-2 text-white outline-none focus:bg-white/10 resize-none min-h-[60px] text-sm custom-scrollbar mt-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-yellow-200">📝 軼事記錄</label>
-                    <textarea 
-                      value={entry.ane || ''} 
-                      onChange={e => handleFieldChange(dateStr, 'ane', e.target.value)}
-                      onBlur={() => saveEntry(dateStr)}
-                      className="w-full bg-black/20 rounded p-2 text-white outline-none focus:bg-white/10 resize-none min-h-[60px] text-sm custom-scrollbar mt-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-yellow-200">💬 親師溝通事項</label>
-                    <textarea 
-                      value={entry.com || ''} 
-                      onChange={e => handleFieldChange(dateStr, 'com', e.target.value)}
-                      onBlur={() => saveEntry(dateStr)}
-                      className="w-full bg-black/20 rounded p-2 text-white outline-none focus:bg-white/10 resize-none min-h-[60px] text-sm custom-scrollbar mt-1"
-                    />
+                <div className="bg-black/20 border border-white/20 rounded-xl p-5 shadow-inner flex flex-col">
+                  <h3 className="text-yellow-200 font-bold mb-4 text-lg border-b border-white/10 pb-2">📌 本週重點活動</h3>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar text-white/90 whitespace-pre-wrap text-base font-bold leading-relaxed">
+                    {currentEvents || <span className="text-white/30 italic">尚無重點活動</span>}
                   </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
+
+              {/* 班級公布欄 */}
+              <div className="flex-1 bg-black/20 border border-white/20 rounded-xl p-5 shadow-inner flex flex-col min-h-[260px]">
+                <div className="flex justify-between items-center border-b border-white/10 pb-3 mb-4">
+                  <h3 className="text-yellow-200 font-bold text-xl flex items-center gap-2">
+                    📝 班級公布欄
+                  </h3>
+                  <button onClick={addNote} className="chalk-btn bg-green-600/80 hover:bg-green-500 py-1.5 px-4 text-sm flex items-center gap-1 shadow-lg font-bold">
+                    <Plus className="w-4 h-4" /> 新增便利貼
+                  </button>
+                </div>
+                
+                <div className="flex flex-wrap gap-4 overflow-y-auto custom-scrollbar flex-1 content-start">
+                  {bulletinNotes.length === 0 ? (
+                    <div className="w-full text-center text-white/30 italic py-8 font-bold">目前公布欄空空如也，點擊右上角新增便利貼！</div>
+                  ) : (
+                    bulletinNotes.map(note => (
+                      <div key={note.id} className={`${note.color} w-[180px] h-[180px] rounded shadow-xl p-4 flex flex-col relative group transform transition-transform hover:scale-105 hover:-rotate-2 rotate-1`}>
+                        <button 
+                          onClick={() => deleteNote(note.id)} 
+                          className="absolute -top-3 -right-3 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                          title="撕下便利貼"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        <textarea 
+                          value={note.text}
+                          onChange={(e) => updateNote(note.id, e.target.value)}
+                          onBlur={blurNote}
+                          className="w-full flex-1 bg-transparent resize-none outline-none font-bold placeholder:text-black/30 text-lg leading-relaxed"
+                          placeholder="輸入公布事項..."
+                        />
+                        <div className="text-xs text-black/40 text-right mt-2 font-bold">
+                          {new Date(note.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 標題列下放 (本週主題 + 匯出鈕) */}
+          <div className="flex flex-col md:flex-row justify-between items-end border-b-2 border-white/30 pb-4 mb-2 mt-4 px-2">
+            <div className="bg-yellow-600/30 border-2 border-yellow-400 text-yellow-300 px-6 py-2 rounded-xl shadow-lg flex items-center">
+              <span className="text-sm font-bold opacity-80 mr-3">🎯 本週教學主題</span>
+              <span className="text-2xl font-bold tracking-wider">{currentTheme}</span>
+            </div>
+            <button onClick={exportToWord} className="chalk-btn bg-blue-600/80 hover:bg-blue-500 shadow-lg flex items-center gap-2 py-3 px-6 text-lg mt-4 md:mt-0">
+              <FileText className="w-6 h-6" />
+              匯出本週記錄 (Word)
+            </button>
+          </div>
+
+          {/* 每日日誌區塊 */}
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+            {weekDays.map((dateStr, idx) => {
+              const entry = entries[`${dateStr}_0`] || {};
+              const isToday = new Date().toISOString().split('T')[0] === dateStr;
+              const dayAtt = attendance[dateStr] || {};
+              let pCount = 0; let lCount = 0;
+              Object.values(dayAtt).forEach((st: any) => {
+                if (st.status === 'attend') pCount++;
+                else if (st.status !== 'unexcused') lCount++;
+              });
+
+              return (
+                <div key={dateStr} className={`chalk-box flex flex-col ${isToday ? 'border-4 border-yellow-400 bg-yellow-600/20 shadow-2xl' : ''}`}>
+                  <div className="text-center font-bold text-lg border-b border-white/20 pb-4 mb-4 flex flex-col items-center">
+                    <div className="flex gap-2 items-center">
+                      <div className={isToday ? 'text-yellow-300' : 'text-white'}>{dayNames[idx]}</div>
+                      <div className={`text-xl ${isToday ? 'text-yellow-300' : 'text-white'}`}>{dateStr.substring(5).replace('-', '/')}</div>
+                    </div>
+                    <div className="text-sm bg-black/40 rounded-lg p-2 mt-3 font-bold text-yellow-300 border-2 border-white/20 shadow-inner w-full">
+                       出勤: <span className="text-green-400">{pCount}</span> 人 | 請假: <span className="text-red-400">{lCount}</span> 人
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+                    <div>
+                      <label className="text-xs text-yellow-200">🌤️ 天氣</label>
+                      <input 
+                        type="text" 
+                        value={entry.weather || ''} 
+                        onChange={e => handleFieldChange(dateStr, 'weather', e.target.value)} 
+                        onBlur={() => saveEntry(dateStr)}
+                        className="chalk-input w-full text-sm py-1 bg-black/20 rounded px-2 mt-1 border-b-0"
+                        placeholder="如: 晴朗" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-yellow-200">📖 教學活動</label>
+                      <textarea 
+                        value={entry.act || ''} 
+                        onChange={e => handleFieldChange(dateStr, 'act', e.target.value)}
+                        onBlur={() => saveEntry(dateStr)}
+                        className="w-full bg-black/20 rounded p-2 text-white outline-none focus:bg-white/10 resize-none min-h-[80px] text-sm custom-scrollbar mt-1"
+                        placeholder="教學活動..."
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-yellow-200">🏃 大肌肉活動</label>
+                      <textarea 
+                        value={entry.motor || ''} 
+                        onChange={e => handleFieldChange(dateStr, 'motor', e.target.value)}
+                        onBlur={() => saveEntry(dateStr)}
+                        className="w-full bg-black/20 rounded p-2 text-white outline-none focus:bg-white/10 resize-none min-h-[60px] text-sm custom-scrollbar mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-yellow-200">🧐 教學省思</label>
+                      <textarea 
+                        value={entry.ref || ''} 
+                        onChange={e => handleFieldChange(dateStr, 'ref', e.target.value)}
+                        onBlur={() => saveEntry(dateStr)}
+                        className="w-full bg-black/20 rounded p-2 text-white outline-none focus:bg-white/10 resize-none min-h-[60px] text-sm custom-scrollbar mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-yellow-200">📝 軼事記錄</label>
+                      <textarea 
+                        value={entry.ane || ''} 
+                        onChange={e => handleFieldChange(dateStr, 'ane', e.target.value)}
+                        onBlur={() => saveEntry(dateStr)}
+                        className="w-full bg-black/20 rounded p-2 text-white outline-none focus:bg-white/10 resize-none min-h-[60px] text-sm custom-scrollbar mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-yellow-200">💬 親師溝通事項</label>
+                      <textarea 
+                        value={entry.com || ''} 
+                        onChange={e => handleFieldChange(dateStr, 'com', e.target.value)}
+                        onBlur={() => saveEntry(dateStr)}
+                        className="w-full bg-black/20 rounded p-2 text-white outline-none focus:bg-white/10 resize-none min-h-[60px] text-sm custom-scrollbar mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
