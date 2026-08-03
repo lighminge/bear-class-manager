@@ -3,6 +3,7 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'fireb
 import { db } from '../lib/firebase';
 import { Users, PlusCircle, PenTool, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ConfirmModal from '../components/ConfirmModal';
 
 interface Student {
   id: string;
@@ -21,7 +22,7 @@ function Pagination({ total, current, pageSize, onPageChange, onPageSizeChange }
   const pages = Math.ceil(total / pageSize);
   if (pages === 0) return null;
   return (
-    <div className="flex justify-between items-center bg-black/20 p-2 rounded mt-4">
+    <div className="flex justify-between items-center bg-black/20 p-2 rounded">
       <div className="flex gap-2">
         <button onClick={() => onPageChange(1)} disabled={current === 1} className="chalk-btn py-1 px-3 text-xs bg-white/10 hover:bg-white/20 disabled:opacity-50">第一頁</button>
         <button onClick={() => onPageChange(current - 1)} disabled={current === 1} className="chalk-btn py-1 px-3 text-xs bg-white/10 hover:bg-white/20 disabled:opacity-50">上一頁</button>
@@ -47,14 +48,14 @@ export default function StudentsManagement() {
   const [students, setStudents] = useState<Student[]>([]);
   
   // Filters
-  const [filterYear, setFilterYear] = useState('ALL');
+  const [filterYear, setFilterYear] = useState('');
   const [filterName, setFilterName] = useState('');
   const [filterStatus, setFilterStatus] = useState('在學');
   
   // Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [academicYear, setAcademicYear] = useState('114');
+  const [academicYear, setAcademicYear] = useState('');
   const [seatNo, setSeatNo] = useState('');
   const [name, setName] = useState('');
   const [gender, setGender] = useState('男');
@@ -63,9 +64,10 @@ export default function StudentsManagement() {
   const [emergencyContact, setEmergencyContact] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
 
-  // Pagination State
+  // Pagination & Confirm
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'bear_students'), (snapshot) => {
@@ -75,7 +77,16 @@ export default function StudentsManagement() {
       console.error("Firebase Error:", error);
       alert("讀取學生資料失敗，請確認資料庫權限");
     });
-    return () => unsubscribe();
+    
+    const unsubSettings = onSnapshot(doc(db, 'bear_settings', 'main'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setFilterYear(prev => prev === '' ? (data.academicYear || '114') : prev);
+        setAcademicYear(prev => prev === '' ? (data.academicYear || '114') : prev);
+      }
+    });
+
+    return () => { unsubscribe(); unsubSettings(); };
   }, []);
 
   // 當過濾條件改變時，重設分頁到第一頁
@@ -85,7 +96,6 @@ export default function StudentsManagement() {
 
   const resetForm = () => {
     setEditId(null);
-    setAcademicYear('114');
     setSeatNo('');
     setName('');
     setGender('男');
@@ -93,6 +103,7 @@ export default function StudentsManagement() {
     setAllergens('');
     setEmergencyContact('');
     setEmergencyPhone('');
+    // 不重置 academicYear，保持目前的預設值
   };
 
   const handleEdit = (s: Student) => {
@@ -138,10 +149,11 @@ export default function StudentsManagement() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm("確定要刪除這筆學生資料嗎？")) {
+  const handleDelete = async () => {
+    if (confirmDeleteId) {
       try {
-        await deleteDoc(doc(db, 'bear_students', id));
+        await deleteDoc(doc(db, 'bear_students', confirmDeleteId));
+        setConfirmDeleteId(null);
       } catch (error) {
         console.error(error);
         alert("刪除失敗！");
@@ -164,12 +176,21 @@ export default function StudentsManagement() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
+      <ConfirmModal 
+        isOpen={!!confirmDeleteId}
+        type="confirm"
+        title="確認刪除"
+        message="確定要刪除這筆學生資料嗎？此動作無法復原。"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
+
       {/* Filter Section */}
       <div className="chalk-box flex flex-col md:flex-row gap-4 items-end justify-between">
         <div className="flex flex-wrap gap-4 items-end">
           <div>
-            <label className="block text-yellow-200 text-sm mb-1">學年度</label>
-            <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="chalk-input text-black bg-white w-32">
+            <label className="block text-yellow-200 text-sm mb-1">目前所在學年</label>
+            <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="chalk-input text-black bg-white w-32 font-bold">
               <option value="ALL">全部學年</option>
               {['112', '113', '114', '115', '116', '117', '118'].map(y => (
                 <option key={y} value={y}>{y}學年</option>
@@ -273,8 +294,8 @@ export default function StudentsManagement() {
       </AnimatePresence>
 
       {/* List Section */}
-      <div className="chalk-box overflow-x-auto custom-scrollbar">
-        <h2 className="text-2xl font-bold mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="chalk-box overflow-x-auto custom-scrollbar flex flex-col gap-4">
+        <h2 className="text-2xl font-bold flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <Users className="w-6 h-6 text-yellow-300" /> 學生名單
             <span className="text-sm font-normal bg-black/30 px-3 py-1.5 rounded-full border border-white/20 shadow-inner tracking-wide ml-2">
@@ -287,9 +308,20 @@ export default function StudentsManagement() {
           </div>
         </h2>
         
+        {displayStudents.length > 0 && (
+          <Pagination 
+            total={displayStudents.length} 
+            current={currentPage} 
+            pageSize={pageSize} 
+            onPageChange={setCurrentPage} 
+            onPageSizeChange={setPageSize} 
+          />
+        )}
+        
         <table className="w-full text-left border-collapse min-w-[800px]">
           <thead>
             <tr className="border-b-2 border-white/50 bg-black/20">
+              <th className="p-3 text-center w-24">操作</th>
               <th className="p-3">學年</th>
               <th className="p-3">座號</th>
               <th className="p-3">姓名</th>
@@ -298,7 +330,6 @@ export default function StudentsManagement() {
               <th className="p-3 text-red-200">過敏原</th>
               <th className="p-3">聯絡人</th>
               <th className="p-3">聯絡電話</th>
-              <th className="p-3 text-center w-24">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -318,6 +349,14 @@ export default function StudentsManagement() {
                       exit={{ opacity: 0 }}
                       className={`border-b border-white/20 hover:bg-white/10 transition-colors ${!isEnrolled ? 'opacity-50 hover:opacity-80' : ''}`}
                     >
+                      <td className="p-3 flex justify-center gap-2">
+                        <button onClick={() => handleEdit(s)} className="p-2 hover:bg-blue-500/50 rounded-full transition-colors group">
+                          <PenTool className="w-4 h-4 text-blue-300 group-hover:text-white" />
+                        </button>
+                        <button onClick={() => setConfirmDeleteId(s.id)} className="p-2 hover:bg-red-500/50 rounded-full transition-colors group">
+                          <Trash2 className="w-4 h-4 text-red-300 group-hover:text-white" />
+                        </button>
+                      </td>
                       <td className="p-3 font-bold text-yellow-300">{s.academicYear || '-'}</td>
                       <td className="p-3">{s.seatNo}</td>
                       <td className="p-3 font-bold">{s.name}</td>
@@ -326,14 +365,6 @@ export default function StudentsManagement() {
                       <td className="p-3 text-red-300 font-bold">{s.allergens || '-'}</td>
                       <td className="p-3">{s.emergencyContact || '-'}</td>
                       <td className="p-3">{s.emergencyPhone || '-'}</td>
-                      <td className="p-3 flex justify-center gap-2">
-                        <button onClick={() => handleEdit(s)} className="p-2 hover:bg-blue-500/50 rounded-full transition-colors group">
-                          <PenTool className="w-4 h-4 text-blue-300 group-hover:text-white" />
-                        </button>
-                        <button onClick={() => handleDelete(s.id)} className="p-2 hover:bg-red-500/50 rounded-full transition-colors group">
-                          <Trash2 className="w-4 h-4 text-red-300 group-hover:text-white" />
-                        </button>
-                      </td>
                     </motion.tr>
                   );
                 })

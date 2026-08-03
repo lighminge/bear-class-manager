@@ -68,7 +68,7 @@ export default function TeacherLeaves() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await setDoc(doc(db, 'bear_teacherLeaves', 'all'), { records: leaves }, { merge: true });
+      await setDoc(doc(db, 'bear_teacherLeaves', 'all'), { records: leaves });
       setAlertMessage('請假紀錄已儲存！');
       setShowAlert(true);
     } catch (e) {

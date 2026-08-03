@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Calendar as CalendarIcon, Loader2, FileText, Plus, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, FileText, Plus, Trash2, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import ConfirmModal from '../components/ConfirmModal';
 
 interface WeeklyEntry {
   weather: string;
@@ -41,6 +43,9 @@ export default function WeeklySchedule() {
   const [annualEvents, setAnnualEvents] = useState<Record<string, any>>({});
   const [bulletinNotes, setBulletinNotes] = useState<BulletinNote[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState<string | null>(null);
+  const [calendarActionModal, setCalendarActionModal] = useState<{ isOpen: boolean, dateStr: string }>({ isOpen: false, dateStr: '' });
 
   // Generate week dates (Monday to Friday)
   const getWeekDays = (dateStr: string) => {
@@ -200,9 +205,9 @@ export default function WeeklySchedule() {
     }
   };
 
-  const addNote = () => {
-    const randomColor = POST_IT_COLORS[Math.floor(Math.random() * POST_IT_COLORS.length)];
-    const newNotes = [...bulletinNotes, { id: Date.now().toString(), text: '', color: randomColor, createdAt: Date.now() }];
+  const addNote = (initialText = '') => {
+    const color = POST_IT_COLORS[bulletinNotes.length % POST_IT_COLORS.length];
+    const newNotes = [...bulletinNotes, { id: Date.now().toString(), text: initialText, color, createdAt: Date.now() }];
     saveBulletin(newNotes);
   };
 
@@ -215,11 +220,66 @@ export default function WeeklySchedule() {
     saveBulletin(bulletinNotes);
   };
 
-  const deleteNote = (id: string) => {
-    if(window.confirm('確定要撕下這張便利貼嗎？')) {
-      const newNotes = bulletinNotes.filter(n => n.id !== id);
+  const executeDeleteNote = () => {
+    if(confirmDeleteNoteId) {
+      const newNotes = bulletinNotes.filter(n => n.id !== confirmDeleteNoteId);
       saveBulletin(newNotes);
+      setConfirmDeleteNoteId(null);
     }
+  };
+
+  // Drag and Drop handlers
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData('text/plain', index.toString());
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    const dragIndexStr = e.dataTransfer.getData('text/plain');
+    if (!dragIndexStr) return;
+    const dragIndex = parseInt(dragIndexStr, 10);
+    if (dragIndex === dropIndex) return;
+
+    const newNotes = [...bulletinNotes];
+    const [draggedNote] = newNotes.splice(dragIndex, 1);
+    newNotes.splice(dropIndex, 0, draggedNote);
+    saveBulletin(newNotes);
+    setBulletinNotes(newNotes); // optimistic
+  };
+
+  // Calendar click actions
+  const handleActionAddNote = () => {
+    const dateFormatted = calendarActionModal.dateStr.substring(5).replace('-', '/');
+    addNote(`${dateFormatted}: `);
+    setCalendarActionModal({ isOpen: false, dateStr: '' });
+  };
+
+  const handleActionAddEvent = async () => {
+    const dateFormatted = calendarActionModal.dateStr.substring(5).replace('-', '/');
+    const eventText = window.prompt(`請輸入 ${dateFormatted} 的活動內容：`);
+    if (eventText) {
+      const docId = `${settings.academicYear}_${settings.semester}`;
+      const annualDoc = annualEvents[docId];
+      if (annualDoc && annualDoc.weeks) {
+        const newWeeks = [...annualDoc.weeks];
+        if (newWeeks[viewingWeek - 1]) {
+           const existing = newWeeks[viewingWeek - 1].events || '';
+           newWeeks[viewingWeek - 1].events = existing ? `${existing}\n${dateFormatted} ${eventText}` : `${dateFormatted} ${eventText}`;
+           try {
+             await setDoc(doc(db, 'bear_annualEvents', docId), { weeks: newWeeks }, { merge: true });
+           } catch(e) { alert('儲存活動失敗'); }
+        }
+      } else {
+        alert('找不到該學期的年度計畫，請先至年度行事曆設定');
+      }
+    }
+    setCalendarActionModal({ isOpen: false, dateStr: '' });
   };
 
   const exportToWord = () => {
@@ -299,15 +359,20 @@ export default function WeeklySchedule() {
             const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const isWeekDay = weekDays.includes(dateStr);
             const teacherLeave = leaves[dateStr];
-            let classes = "rounded-md py-1.5 transition-colors ";
+            let classes = "rounded-md py-1.5 transition-colors cursor-pointer ";
             
             if (teacherLeave === displayLeadTeacher) classes += "bg-purple-600 font-bold border border-purple-300 shadow-lg text-sm flex items-center justify-center";
             else if (teacherLeave === displayCoTeacher) classes += "bg-blue-600 font-bold border border-blue-300 shadow-lg text-sm flex items-center justify-center";
-            else if (isWeekDay) classes += "bg-yellow-500/30 font-bold outline outline-2 outline-yellow-400 flex items-center justify-center";
+            else if (isWeekDay) classes += "bg-yellow-500/30 font-bold outline outline-2 outline-yellow-400 flex items-center justify-center hover:bg-yellow-500/50";
             else classes += "text-white/80 hover:bg-white/10 flex items-center justify-center";
 
             return (
-              <div key={d} className={classes} title={teacherLeave ? `${teacherLeave}請假` : ''}>
+              <div 
+                key={d} 
+                className={classes} 
+                title={teacherLeave ? `${teacherLeave}請假` : '點擊新增活動/便利貼'}
+                onClick={() => setCalendarActionModal({ isOpen: true, dateStr })}
+              >
                 {teacherLeave ? <span className="text-[10px] leading-none whitespace-nowrap">{teacherLeave[0]}假</span> : d}
               </div>
             );
@@ -327,6 +392,46 @@ export default function WeeklySchedule() {
 
   return (
     <div className="max-w-[1400px] mx-auto animate-fade-in space-y-4">
+      <ConfirmModal 
+        isOpen={!!confirmDeleteNoteId}
+        type="confirm"
+        title="確認撕下"
+        message="確定要撕下這張便利貼嗎？此動作無法復原。"
+        onConfirm={executeDeleteNote}
+        onCancel={() => setConfirmDeleteNoteId(null)}
+      />
+
+      <AnimatePresence>
+        {calendarActionModal.isOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="chalk-box w-full max-w-sm relative bg-[#2b5b3f]"
+            >
+              <button 
+                onClick={() => setCalendarActionModal({ isOpen: false, dateStr: '' })}
+                className="absolute top-4 right-4 text-white/50 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <h2 className="text-xl font-bold mb-6 text-yellow-300 text-center border-b border-white/20 pb-3">
+                {calendarActionModal.dateStr.substring(5).replace('-', '/')} 日期操作
+              </h2>
+              <div className="flex flex-col gap-4">
+                <button onClick={handleActionAddEvent} className="chalk-btn bg-blue-600/80 hover:bg-blue-500 py-3 text-lg font-bold shadow-lg w-full justify-center">
+                  ➕ 新增活動 (至重點事項)
+                </button>
+                <button onClick={handleActionAddNote} className="chalk-btn bg-green-600/80 hover:bg-green-500 py-3 text-lg font-bold shadow-lg w-full justify-center">
+                  📝 新增便利貼
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {loading ? (
         <div className="flex justify-center p-12"><Loader2 className="animate-spin w-12 h-12 text-white/50" /></div>
       ) : (
@@ -382,24 +487,31 @@ export default function WeeklySchedule() {
 
               {/* 班級公布欄 */}
               <div className="flex-1 bg-black/20 border border-white/20 rounded-xl p-5 shadow-inner flex flex-col min-h-[260px]">
-                <div className="flex justify-between items-center border-b border-white/10 pb-3 mb-4">
+                <div className="flex justify-between items-center border-b border-white/10 pb-3 mb-2">
                   <h3 className="text-yellow-200 font-bold text-xl flex items-center gap-2">
                     📝 班級公布欄
                   </h3>
-                  <button onClick={addNote} className="chalk-btn bg-green-600/80 hover:bg-green-500 py-1.5 px-4 text-sm flex items-center gap-1 shadow-lg font-bold">
+                  <button onClick={() => addNote('')} className="chalk-btn bg-green-600/80 hover:bg-green-500 py-1.5 px-4 text-sm flex items-center gap-1 shadow-lg font-bold">
                     <Plus className="w-4 h-4" /> 新增便利貼
                   </button>
                 </div>
                 
-                <div className="flex flex-wrap gap-4 overflow-y-auto custom-scrollbar flex-1 content-start">
+                <div className="flex flex-wrap overflow-y-auto custom-scrollbar flex-1 content-start -mx-2 px-2">
                   {bulletinNotes.length === 0 ? (
-                    <div className="w-full text-center text-white/30 italic py-8 font-bold">目前公布欄空空如也，點擊右上角新增便利貼！</div>
+                    <div className="w-full text-center text-white/30 italic py-8 font-bold mt-4">目前公布欄空空如也，點擊右上角新增便利貼！</div>
                   ) : (
-                    bulletinNotes.map(note => (
-                      <div key={note.id} className={`${note.color} w-[180px] h-[180px] rounded shadow-xl p-4 flex flex-col relative group transform transition-transform hover:scale-105 hover:-rotate-2 rotate-1`}>
+                    bulletinNotes.map((note, index) => (
+                      <div 
+                        key={note.id} 
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, index)}
+                        className={`${note.color} w-[180px] h-[180px] rounded shadow-xl p-4 flex flex-col relative group transform transition-transform hover:scale-105 hover:-rotate-2 rotate-1 m-2 cursor-move z-0 hover:z-10`}
+                      >
                         <button 
-                          onClick={() => deleteNote(note.id)} 
-                          className="absolute -top-3 -right-3 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                          onClick={() => setConfirmDeleteNoteId(note.id)} 
+                          className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-20"
                           title="撕下便利貼"
                         >
                           <Trash2 className="w-4 h-4" />
