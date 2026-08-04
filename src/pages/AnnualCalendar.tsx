@@ -46,7 +46,7 @@ function MiniCalendar({ weekStartDate, onDateClick }: { weekStartDate: Date, onD
         {['一', '二', '三', '四', '五', '六', '日'].map(d => <div key={d}>{d}</div>)}
       </div>
       <div className="grid grid-cols-7 gap-1 text-center">
-        {Array.from({ length: emptyCells }).map((_, i) => <div key={empty- + i} />)}
+        {Array.from({ length: emptyCells }).map((_, i) => <div key={`empty-${i}`} />)}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const d = i + 1;
           const isHighlighted = weekDates.includes(d) && weekMonths[weekDates.indexOf(d)] === month;
@@ -54,15 +54,15 @@ function MiniCalendar({ weekStartDate, onDateClick }: { weekStartDate: Date, onD
           const handleCellClick = () => {
             const mStr = String(month + 1).padStart(2, '0');
             const dStr = String(d).padStart(2, '0');
-            onDateClick(${mStr}/);
+            onDateClick(`${mStr}/${dStr}`);
           };
 
           return (
             <div 
               key={d} 
               onClick={handleCellClick}
-              className={ounded py-1 cursor-pointer transition-transform hover:scale-110 }
-              title={新增 / 重點活動}
+              className={`rounded py-1 cursor-pointer transition-transform hover:scale-110 ${isHighlighted ? 'bg-yellow-500 text-black font-bold outline outline-2 outline-white/50 hover:bg-yellow-400 shadow' : 'text-white/80 hover:bg-white/20'}`}
+              title={`新增 ${month + 1}/${d} 重點活動`}
             >
               {d}
             </div>
@@ -98,7 +98,7 @@ export default function AnnualCalendar() {
     return monday.toISOString().split('T')[0];
   };
 
-  const docId = ${globalYear}_;
+  const docId = `${globalYear}_${semester}`;
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'bear_settings', 'main'), (snap) => {
@@ -204,8 +204,8 @@ export default function AnnualCalendar() {
     const currentEvents = weeks[weekIdx].events;
     
     // Append the new event format: "MM/DD: event"
-    const newEventLine = ${dateStr}: ;
-    const newEvents = currentEvents ? ${currentEvents}\n : newEventLine;
+    const newEventLine = `${dateStr}: ${eventInputValue}`;
+    const newEvents = currentEvents ? `${currentEvents}\n${newEventLine}` : newEventLine;
     
     const group = groupedWeeks.find(g => g.month === groupMonth);
     if (group) {
@@ -222,7 +222,7 @@ export default function AnnualCalendar() {
         isOpen={showConfirm}
         type="confirm"
         title="儲存變更"
-        message={確定要儲存 學年度  的年度行事曆嗎？}
+        message={`確定要儲存 ${globalYear}學年度 ${semester} 的年度行事曆嗎？`}
         onConfirm={handleSave}
         onCancel={() => setShowConfirm(false)}
       />
@@ -281,7 +281,7 @@ export default function AnnualCalendar() {
           <button 
             onClick={() => setShowConfirm(true)} 
             disabled={saving || (!hasChanges && !saving)}
-            className={chalk-btn transition-colors }
+            className={`chalk-btn transition-colors ${hasChanges ? 'bg-yellow-600 hover:bg-yellow-500 shadow-lg shadow-yellow-500/20 font-bold' : 'opacity-50 cursor-not-allowed'}`}
           >
             {saving ? <Loader2 className="animate-spin w-5 h-5" /> : <Save className="w-5 h-5" />}
             儲存變更
@@ -306,7 +306,7 @@ export default function AnnualCalendar() {
             </thead>
             <tbody>
               {groupedWeeks.map((group) => (
-                <React.Fragment key={group- + group.month}>
+                <React.Fragment key={`group-${group.month}`}>
                   {group.weeks.map((item, wIdxInGroup) => {
                     const { week, idx } = item;
                     const isFirstInGroup = wIdxInGroup === 0;
