@@ -8,7 +8,7 @@ import ConfirmModal from '../components/ConfirmModal';
 interface WeekData {
   theme: string;
   events: string;
-  days: string[]; // 7 days (Mon-Sun)
+  days: string[]; // Legacy, kept for backwards compatibility but not rendered
 }
 
 interface AnnualData {
@@ -17,7 +17,7 @@ interface AnnualData {
 }
 
 // Mini Calendar Component for a specific week
-function MiniCalendar({ weekStartDate }: { weekStartDate: Date }) {
+function MiniCalendar({ weekStartDate, onDateClick }: { weekStartDate: Date, onDateClick: (dateStr: string) => void }) {
   const month = weekStartDate.getMonth();
   const year = weekStartDate.getFullYear();
   const firstDay = new Date(year, month, 1).getDay();
@@ -37,20 +37,29 @@ function MiniCalendar({ weekStartDate }: { weekStartDate: Date }) {
   });
 
   return (
-    <div className="bg-black/30 p-2 rounded border border-white/20 text-[10px] w-32 shrink-0">
-      <div className="text-center font-bold text-yellow-300 mb-1">{month + 1}月</div>
-      <div className="grid grid-cols-7 gap-0.5 text-center text-white/50 mb-1">
+    <div className="bg-black/40 p-3 rounded-xl border border-white/20 text-sm w-44 shrink-0 shadow-inner">
+      <div className="text-center font-bold text-yellow-300 mb-2 text-base">{month + 1}月</div>
+      <div className="grid grid-cols-7 gap-1 text-center text-white/50 mb-1 font-bold">
         {['日', '一', '二', '三', '四', '五', '六'].map(d => <div key={d}>{d}</div>)}
       </div>
-      <div className="grid grid-cols-7 gap-0.5 text-center">
+      <div className="grid grid-cols-7 gap-1 text-center">
         {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const d = i + 1;
           const isHighlighted = weekDates.includes(d) && weekMonths[weekDates.indexOf(d)] === month;
+          
+          const handleCellClick = () => {
+            const mStr = String(month + 1).padStart(2, '0');
+            const dStr = String(d).padStart(2, '0');
+            onDateClick(`${mStr}/${dStr}`);
+          };
+
           return (
             <div 
               key={d} 
-              className={`rounded-sm py-0.5 ${isHighlighted ? 'bg-yellow-500 text-black font-bold outline outline-1 outline-white/50' : 'text-white/80'}`}
+              onClick={handleCellClick}
+              className={`rounded py-1 cursor-pointer transition-transform hover:scale-110 ${isHighlighted ? 'bg-yellow-500 text-black font-bold outline outline-2 outline-white/50 hover:bg-yellow-400 shadow' : 'text-white/80 hover:bg-white/20'}`}
+              title={`新增 ${month + 1}/${d} 重點活動`}
             >
               {d}
             </div>
@@ -72,9 +81,9 @@ export default function AnnualCalendar() {
   
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // Day editor modal state
-  const [editingDay, setEditingDay] = useState<{ weekIdx: number, dayIdx: number } | null>(null);
-  const [dayInputValue, setDayInputValue] = useState('');
+  // Day event input modal
+  const [eventInputModal, setEventInputModal] = useState<{ weekIdx: number, dateStr: string } | null>(null);
+  const [eventInputValue, setEventInputValue] = useState('');
 
   const getDefaultStartDate = (y: string, s: string) => {
     const gregorianYear = parseInt(y) + 1911;
@@ -114,7 +123,7 @@ export default function AnnualCalendar() {
     return () => unsubscribe();
   }, [year, semester, docId]);
 
-  const handleWeekChange = (index: number, field: keyof WeekData, value: any) => {
+  const handleWeekChange = (index: number, field: keyof WeekData, value: string) => {
     const newWeeks = [...weeks];
     newWeeks[index] = { ...newWeeks[index], [field]: value };
     setWeeks(newWeeks);
@@ -138,66 +147,65 @@ export default function AnnualCalendar() {
     }
   };
 
-  const getWeekRange = (weekIndex: number) => {
-    if (!startDate) return '';
-    const start = new Date(startDate);
-    start.setDate(start.getDate() + (weekIndex * 7));
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    return `${start.getMonth() + 1}/${start.getDate()} - ${end.getMonth() + 1}/${end.getDate()}`;
-  };
-
   const getWeekStartDate = (weekIndex: number) => {
     const start = new Date(startDate);
     start.setDate(start.getDate() + (weekIndex * 7));
     return start;
   };
-  
-  const getDayName = (dayIdx: number) => {
-    return ['一', '二', '三', '四', '五', '六', '日'][dayIdx];
-  };
 
-  const saveDayContent = () => {
-    if (!editingDay) return;
-    const { weekIdx, dayIdx } = editingDay;
-    const newDays = [...weeks[weekIdx].days];
-    newDays[dayIdx] = dayInputValue;
-    handleWeekChange(weekIdx, 'days', newDays);
-    setEditingDay(null);
+  const saveEventContent = () => {
+    if (!eventInputModal) return;
+    if (!eventInputValue.trim()) {
+      setEventInputModal(null);
+      setEventInputValue('');
+      return;
+    }
+
+    const { weekIdx, dateStr } = eventInputModal;
+    const currentEvents = weeks[weekIdx].events;
+    
+    // Append the new event format: "MM/DD: event"
+    const newEventLine = `${dateStr}: ${eventInputValue}`;
+    const newEvents = currentEvents ? `${currentEvents}\n${newEventLine}` : newEventLine;
+    
+    handleWeekChange(weekIdx, 'events', newEvents);
+    setEventInputModal(null);
+    setEventInputValue('');
   };
 
   return (
     <div className="max-w-[1400px] mx-auto animate-fade-in space-y-6">
       <ConfirmModal 
         isOpen={showConfirm}
+        type="confirm"
         title="儲存變更"
         message={`確定要儲存 ${year}學年度 ${semester} 的年度行事曆嗎？`}
         onConfirm={handleSave}
         onCancel={() => setShowConfirm(false)}
       />
 
-      {/* Day Editor Modal */}
+      {/* Event Editor Modal */}
       <AnimatePresence>
-        {editingDay && (
+        {eventInputModal && (
           <div className="fixed inset-0 flex items-center justify-center z-[100] px-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditingDay(null)} />
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="chalk-box relative z-10 max-w-md w-full bg-[#346b4b] shadow-2xl p-6">
-              <div className="flex justify-between items-center mb-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEventInputModal(null)} />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="chalk-box relative z-10 max-w-md w-full bg-[#2b5b3f] shadow-2xl p-6">
+              <div className="flex justify-between items-center mb-4 border-b border-white/20 pb-3">
                 <h3 className="text-xl font-bold text-yellow-300">
-                  編輯活動 - W{editingDay.weekIdx + 1} 星期{getDayName(editingDay.dayIdx)}
+                  新增 {eventInputModal.dateStr} 重點活動
                 </h3>
-                <button onClick={() => setEditingDay(null)} className="text-white/50 hover:text-white"><X className="w-6 h-6" /></button>
+                <button onClick={() => setEventInputModal(null)} className="text-white/50 hover:text-white"><X className="w-6 h-6" /></button>
               </div>
               <textarea 
-                value={dayInputValue} 
-                onChange={(e) => setDayInputValue(e.target.value)} 
-                className="chalk-input w-full min-h-[120px] resize-none bg-black/20 p-3 rounded mb-4" 
-                placeholder="請輸入當天活動內容..." 
+                value={eventInputValue} 
+                onChange={(e) => setEventInputValue(e.target.value)} 
+                className="chalk-input w-full min-h-[120px] resize-none bg-white text-black font-bold p-3 rounded mb-4" 
+                placeholder="請輸入活動內容..." 
                 autoFocus
               />
               <div className="flex justify-end gap-3">
-                <button onClick={() => setEditingDay(null)} className="chalk-btn bg-black/20 text-white/80">取消</button>
-                <button onClick={saveDayContent} className="chalk-btn bg-yellow-600/80 hover:bg-yellow-500">確定</button>
+                <button onClick={() => setEventInputModal(null)} className="chalk-btn bg-black/20 text-white/80 hover:bg-black/40">取消</button>
+                <button onClick={saveEventContent} className="chalk-btn bg-yellow-600/80 hover:bg-yellow-500 font-bold px-6">確定</button>
               </div>
             </motion.div>
           </div>
@@ -230,7 +238,7 @@ export default function AnnualCalendar() {
           <button 
             onClick={() => setShowConfirm(true)} 
             disabled={saving || (!hasChanges && !saving)}
-            className={`chalk-btn transition-colors ${hasChanges ? 'bg-yellow-600 hover:bg-yellow-500 shadow-lg shadow-yellow-500/20' : 'opacity-50 cursor-not-allowed'}`}
+            className={`chalk-btn transition-colors ${hasChanges ? 'bg-yellow-600 hover:bg-yellow-500 shadow-lg shadow-yellow-500/20 font-bold' : 'opacity-50 cursor-not-allowed'}`}
           >
             {saving ? <Loader2 className="animate-spin w-5 h-5" /> : <Save className="w-5 h-5" />}
             儲存變更
@@ -242,15 +250,13 @@ export default function AnnualCalendar() {
         <div className="flex justify-center p-12"><Loader2 className="animate-spin w-12 h-12 text-white/50" /></div>
       ) : (
         <div className="chalk-box overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1200px]">
+          <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead>
               <tr className="border-b border-white/50 bg-black/20">
-                <th className="p-3 w-16 text-center">週次</th>
-                <th className="p-3 w-32 text-center">日期區間</th>
-                <th className="p-3 w-[250px]">教學主題</th>
-                <th className="p-3">每日活動規劃 (一 ~ 日)</th>
-                <th className="p-3 w-[200px]">全園/班級行事曆</th>
-                <th className="p-3 w-[150px] text-center">月曆</th>
+                <th className="p-3 w-20 text-center text-lg">週次</th>
+                <th className="p-3 w-[220px] text-center text-lg">月曆</th>
+                <th className="p-3 text-lg">本週重點活動</th>
+                <th className="p-3 w-[300px] text-lg">教學主題</th>
               </tr>
             </thead>
             <tbody>
@@ -262,48 +268,25 @@ export default function AnnualCalendar() {
                   transition={{ delay: idx * 0.02 }}
                   className="border-b border-white/10 hover:bg-white/5 group"
                 >
-                  <td className="p-3 text-center font-bold text-yellow-300">W{idx + 1}</td>
-                  <td className="p-3 text-center text-sm text-gray-300">{getWeekRange(idx)}</td>
-                  <td className="p-2">
-                    <textarea 
-                      value={week.theme}
-                      onChange={(e) => handleWeekChange(idx, 'theme', e.target.value)}
-                      className="w-full bg-black/20 rounded p-2 text-white outline-none focus:bg-white/10 resize-none min-h-[70px] custom-scrollbar text-sm"
-                      placeholder="主題名稱..."
-                    />
+                  <td className="p-3 text-center font-bold text-yellow-300 text-lg">W{idx + 1}</td>
+                  <td className="p-3 flex justify-center">
+                    {startDate && <MiniCalendar weekStartDate={getWeekStartDate(idx)} onDateClick={(dateStr) => setEventInputModal({ weekIdx: idx, dateStr })} />}
                   </td>
-                  <td className="p-2">
-                    <div className="grid grid-cols-7 gap-1 h-full min-h-[70px]">
-                      {week.days.map((dayContent, dayIdx) => (
-                        <div 
-                          key={dayIdx} 
-                          onClick={() => {
-                            setEditingDay({ weekIdx: idx, dayIdx });
-                            setDayInputValue(dayContent);
-                          }}
-                          className="bg-black/20 hover:bg-white/10 border border-white/10 rounded p-1 cursor-pointer flex flex-col group/day relative transition-colors"
-                          title="點擊編輯內容"
-                        >
-                          <div className="text-[10px] text-center text-yellow-100/70 border-b border-white/10 mb-1 pb-0.5 font-bold">
-                            星期{getDayName(dayIdx)}
-                          </div>
-                          <div className="text-xs text-white/90 overflow-hidden text-ellipsis line-clamp-2 break-all">
-                            {dayContent || <span className="text-white/20 italic">空</span>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="p-2">
+                  <td className="p-3">
                     <textarea 
                       value={week.events}
                       onChange={(e) => handleWeekChange(idx, 'events', e.target.value)}
-                      className="w-full bg-black/20 rounded p-2 text-white outline-none focus:bg-white/10 resize-none min-h-[70px] custom-scrollbar text-sm"
-                      placeholder="活動與行事曆..."
+                      className="w-full bg-black/20 rounded p-3 text-white outline-none focus:bg-white/10 resize-none min-h-[160px] custom-scrollbar text-base font-bold shadow-inner"
+                      placeholder="這裡輸入的內容會同步至每週排程行事曆的「本週重點活動」..."
                     />
                   </td>
-                  <td className="p-2 flex justify-center">
-                    {startDate && <MiniCalendar weekStartDate={getWeekStartDate(idx)} />}
+                  <td className="p-3">
+                    <textarea 
+                      value={week.theme}
+                      onChange={(e) => handleWeekChange(idx, 'theme', e.target.value)}
+                      className="w-full bg-black/20 rounded p-3 text-yellow-100 outline-none focus:bg-white/10 resize-none min-h-[160px] custom-scrollbar text-base font-bold shadow-inner"
+                      placeholder="主題名稱..."
+                    />
                   </td>
                 </motion.tr>
               ))}

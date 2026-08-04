@@ -50,7 +50,9 @@ export default function WeeklySchedule() {
   const [classEventsDoc, setClassEventsDoc] = useState<Record<string, any>>({});
   const [calendarActionModal, setCalendarActionModal] = useState<{ isOpen: boolean, dateStr: string }>({ isOpen: false, dateStr: '' });
   const [eventInputModal, setEventInputModal] = useState<{ isOpen: boolean, initialDateStr: string, isEditing: boolean, editingIndex: number, text: string }>({ isOpen: false, initialDateStr: '', isEditing: false, editingIndex: -1, text: '' });
+  const [themeInputModal, setThemeInputModal] = useState<{ isOpen: boolean, text: string }>({ isOpen: false, text: '' });
   const [alertModal, setAlertModal] = useState<{ isOpen: boolean, message: string }>({ isOpen: false, message: '' });
+  const [students, setStudents] = useState<any[]>([]);
 
   // Events List Pagination
   const [eventsPage, setEventsPage] = useState(1);
@@ -88,6 +90,10 @@ export default function WeeklySchedule() {
     }
   }
 
+  // Override with class custom theme if exists
+  const classCustomTheme = classEventsDoc[docId]?.themes?.[viewingWeek];
+  const displayTheme = classCustomTheme !== undefined ? classCustomTheme : currentTheme;
+
   const schoolEventsList = schoolEventsText.split('\n').filter(s => s.trim() !== '');
   const classEventsList = (classEventsDoc[docId]?.weeks?.[viewingWeek] || []) as string[];
 
@@ -95,6 +101,8 @@ export default function WeeklySchedule() {
     ...schoolEventsList.map((text, i) => ({ type: 'school' as const, text, originalIndex: i })),
     ...classEventsList.map((text, i) => ({ type: 'class' as const, text, originalIndex: i }))
   ];
+  
+  const enrolledCount = students.filter(s => s.academicYear === settings.academicYear && (s.status === '在學' || !s.status)).length;
 
   // Find teachers on leave this week
   const teachersOnLeaveThisWeek: string[] = [];
@@ -159,6 +167,10 @@ export default function WeeklySchedule() {
     const unsubBulletin = onSnapshot(doc(db, 'bear_settings', 'bulletin'), (snap) => {
       if (snap.exists()) setBulletinNotes(snap.data().notes || []);
     });
+    
+    const unsubStudents = onSnapshot(collection(db, 'bear_students'), (snap) => {
+      setStudents(snap.docs.map(d => d.data()));
+    });
 
     return () => {
       unsubEntries();
@@ -168,6 +180,7 @@ export default function WeeklySchedule() {
       unsubClassEvents();
       unsubAtt();
       unsubBulletin();
+      unsubStudents();
     };
   }, []);
 
@@ -376,6 +389,32 @@ export default function WeeklySchedule() {
     }
   }
 
+  const saveThemeAction = async () => {
+    if (!themeInputModal.text.trim()) { 
+      setAlertModal({ isOpen: true, message: '請輸入教學主題' });
+      return; 
+    }
+    
+    const existingDoc = classEventsDoc[docId] || {};
+    const existingThemes = existingDoc.themes || {};
+    
+    const newDocData = {
+      ...existingDoc,
+      themes: {
+        ...existingThemes,
+        [viewingWeek]: themeInputModal.text
+      }
+    };
+    
+    try {
+      await setDoc(doc(db, 'bear_classEvents', docId), newDocData, { merge: true });
+      setThemeInputModal({ isOpen: false, text: '' });
+      setAlertModal({ isOpen: true, message: '教學主題儲存成功！' });
+    } catch(e) {
+      setAlertModal({ isOpen: true, message: '儲存教學主題失敗，請稍後再試。' });
+    }
+  };
+
   const exportToWord = () => {
     let htmlContent = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
@@ -409,8 +448,8 @@ export default function WeeklySchedule() {
         <div>
             <h1>小熊班 每日教學日誌</h1>
             <h3>日期：${dateStr} (星期${['一','二','三','四','五'][idx]}) &nbsp;&nbsp;&nbsp; 天氣：${entry.weather || '未填寫'}</h3>
-            <h3>本週主題：${currentTheme}</h3>
-            <div class="att-summary">出席：${pCount}人 &nbsp;|&nbsp; 請假：${lCount}人</div>
+            <h3>本週主題：${displayTheme}</h3>
+            <div class="att-summary">在籍：${enrolledCount}人 &nbsp;|&nbsp; 出席：${pCount}人 &nbsp;|&nbsp; 請假：${lCount}人</div>
             <table>
                 <tr><th>📌 教學活動</th><td>${formatText(entry.act)}</td></tr>
                 <tr><th>💪 大肌肉運動</th><td>${formatText(entry.motor)}</td></tr>
@@ -574,6 +613,35 @@ export default function WeeklySchedule() {
             </motion.div>
           </div>
         )}
+        
+        {themeInputModal.isOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="chalk-box w-full max-w-md relative bg-[#2b5b3f]"
+            >
+              <h2 className="text-xl font-bold mb-4 text-yellow-300 flex items-center gap-2 border-b border-white/20 pb-2">
+                <PenTool className="w-5 h-5"/> 手動輸入教學主題
+              </h2>
+              <div className="mb-4">
+                <input 
+                  type="text"
+                  value={themeInputModal.text}
+                  onChange={(e) => setThemeInputModal({ ...themeInputModal, text: e.target.value })}
+                  className="chalk-input w-full bg-white text-black font-bold"
+                  placeholder="請輸入本週教學主題..."
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setThemeInputModal({ isOpen: false, text: '' })} className="chalk-btn bg-black/20 text-white hover:bg-black/40">取消</button>
+                <button onClick={saveThemeAction} className="chalk-btn bg-yellow-600/80 hover:bg-yellow-500 font-bold px-6">儲存</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {loading ? (
@@ -733,9 +801,17 @@ export default function WeeklySchedule() {
 
           {/* 標題列下放 (本週主題 + 匯出鈕) */}
           <div className="flex flex-col md:flex-row justify-between items-end border-b-2 border-white/30 pb-4 mb-2 mt-4 px-2">
-            <div className="bg-yellow-600/30 border-2 border-yellow-400 text-yellow-300 px-6 py-2 rounded-xl shadow-lg flex items-center">
-              <span className="text-sm font-bold opacity-80 mr-3">🎯 本週教學主題</span>
-              <span className="text-2xl font-bold tracking-wider">{currentTheme}</span>
+            <div className="flex items-center gap-3">
+              <div className="bg-yellow-600/30 border-2 border-yellow-400 text-yellow-300 px-6 py-2 rounded-xl shadow-lg flex items-center">
+                <span className="text-sm font-bold opacity-80 mr-3">🎯 本週教學主題</span>
+                <span className="text-2xl font-bold tracking-wider">{displayTheme}</span>
+              </div>
+              <button 
+                onClick={() => setThemeInputModal({ isOpen: true, text: displayTheme })}
+                className="chalk-btn bg-blue-600/80 hover:bg-blue-500 px-3 py-2 text-sm flex items-center gap-1 font-bold shadow-lg h-full"
+              >
+                <PenTool className="w-4 h-4" /> 編輯
+              </button>
             </div>
             <button onClick={exportToWord} className="chalk-btn bg-blue-600/80 hover:bg-blue-500 shadow-lg flex items-center gap-2 py-3 px-6 text-lg mt-4 md:mt-0">
               <FileText className="w-6 h-6" />
@@ -763,7 +839,7 @@ export default function WeeklySchedule() {
                       <div className={`text-xl ${isToday ? 'text-yellow-300' : 'text-white'}`}>{dateStr.substring(5).replace('-', '/')}</div>
                     </div>
                     <div className="text-sm bg-black/40 rounded-lg p-2 mt-3 font-bold text-yellow-300 border-2 border-white/20 shadow-inner w-full">
-                       出勤: <span className="text-green-400">{pCount}</span> 人 | 請假: <span className="text-red-400">{lCount}</span> 人
+                       在籍: <span className="text-white">{enrolledCount}</span> 人 | 出席: <span className="text-green-400">{pCount}</span> 人 | 請假: <span className="text-red-400">{lCount}</span> 人
                     </div>
                   </div>
                   
