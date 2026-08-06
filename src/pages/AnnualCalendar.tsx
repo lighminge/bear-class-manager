@@ -17,62 +17,6 @@ interface AnnualData {
   weeks: WeekData[];
 }
 
-// Mini Calendar Component for a specific week
-function MiniCalendar({ weekStartDate, onDateClick }: { weekStartDate: Date, onDateClick: (dateStr: string) => void }) {
-  const month = weekStartDate.getMonth();
-  const year = weekStartDate.getFullYear();
-  const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 is Sun, 1 is Mon
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  
-  const emptyCells = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
-  
-  // Create an array of the 7 dates in this week
-  const weekDates = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date(weekStartDate);
-    d.setDate(d.getDate() + i);
-    return d.getDate();
-  });
-  // Check if the week actually spans two months, we just highlight the dates that match this month
-  const weekMonths = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date(weekStartDate);
-    d.setDate(d.getDate() + i);
-    return d.getMonth();
-  });
-
-  return (
-    <div className="bg-black/40 p-3 rounded-xl border border-white/20 text-sm w-44 shrink-0 shadow-inner">
-      <div className="text-center font-bold text-yellow-300 mb-2 text-base">{month + 1}月</div>
-      <div className="grid grid-cols-7 gap-1 text-center text-white/50 mb-1 font-bold">
-        {['一', '二', '三', '四', '五', '六', '日'].map(d => <div key={d}>{d}</div>)}
-      </div>
-      <div className="grid grid-cols-7 gap-1 text-center">
-        {Array.from({ length: emptyCells }).map((_, i) => <div key={`empty-${i}`} />)}
-        {Array.from({ length: daysInMonth }).map((_, i) => {
-          const d = i + 1;
-          const isHighlighted = weekDates.includes(d) && weekMonths[weekDates.indexOf(d)] === month;
-          
-          const handleCellClick = () => {
-            const mStr = String(month + 1).padStart(2, '0');
-            const dStr = String(d).padStart(2, '0');
-            onDateClick(`${mStr}/${dStr}`);
-          };
-
-          return (
-            <div 
-              key={d} 
-              onClick={handleCellClick}
-              className={`rounded py-1 cursor-pointer transition-transform hover:scale-110 ${isHighlighted ? 'bg-yellow-500 text-black font-bold outline outline-2 outline-white/50 hover:bg-yellow-400 shadow' : 'text-white/80 hover:bg-white/20'}`}
-              title={`新增 ${month + 1}/${d} 重點活動`}
-            >
-              {d}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 export default function AnnualCalendar() {
   const [globalYear, setGlobalYear] = useState('114');
   const [semester, setSemester] = useState('上學期');
@@ -183,6 +127,7 @@ export default function AnnualCalendar() {
   let currentMonthGroup: any = null;
 
   weeks.forEach((week, idx) => {
+    if (!startDate) return;
     const d = getWeekStartDate(idx);
     const m = d.getMonth() + 1; // 1-12
     if (!currentMonthGroup || currentMonthGroup.month !== m) {
@@ -292,16 +237,24 @@ export default function AnnualCalendar() {
       {loading ? (
         <div className="flex justify-center p-12"><Loader2 className="animate-spin w-12 h-12 text-white/50" /></div>
       ) : (
-        <div className="chalk-box overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1200px]">
+        <div className="chalk-box overflow-x-auto bg-[#e8eed2] p-6 text-black" style={{ backgroundImage: 'url(https://www.transparenttextures.com/patterns/rice-paper-2.png)' }}>
+          {/* Using a paper-like background and traditional border styling to match the reference image */}
+          <table className="w-full text-left border-collapse min-w-[1200px] border-2 border-black/80 bg-white/80 backdrop-blur-sm shadow-xl">
             <thead>
-              <tr className="border-b border-white/50 bg-black/20">
-                <th className="p-3 w-16 text-center text-lg">月份</th>
-                <th className="p-3 w-20 text-center text-lg">週次</th>
-                <th className="p-3 w-[220px] text-center text-lg">月曆</th>
-                <th className="p-3 text-lg">本月重點活動</th>
-                <th className="p-3 w-[250px] text-lg">教學主題</th>
-                <th className="p-3 w-[250px] text-lg">課程目標</th>
+              <tr className="border-b-2 border-black/80 bg-stone-100">
+                <th rowSpan={2} className="p-2 w-10 text-center text-lg border-r-2 border-black/80 font-bold text-stone-800">月<br/>份</th>
+                <th rowSpan={2} className="p-2 w-10 text-center text-lg border-r-2 border-black/80 font-bold text-stone-800 leading-tight">週<br/>次</th>
+                <th colSpan={7} className="p-2 text-center text-lg border-r-2 border-black/80 tracking-[2em] ml-[1em] font-bold text-stone-800">日 期</th>
+                <th rowSpan={2} className="p-3 text-center text-lg border-r-2 border-black/80 font-bold text-stone-800 w-[280px]">行事曆</th>
+                <th rowSpan={2} className="p-3 text-center text-lg border-r-2 border-black/80 font-bold text-stone-800 w-[220px]">主題</th>
+                <th rowSpan={2} className="p-3 text-center text-lg font-bold text-stone-800 w-[220px]">課程目標</th>
+              </tr>
+              <tr className="border-b-2 border-black/80 bg-stone-50">
+                {['一', '二', '三', '四', '五', '六', '日'].map((day, i) => (
+                  <th key={day} className={`p-1 w-8 text-center text-sm border-r border-black/30 font-bold ${i >= 5 ? 'text-red-600' : 'text-stone-700'}`}>
+                    {day}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -310,47 +263,85 @@ export default function AnnualCalendar() {
                   {group.weeks.map((item, wIdxInGroup) => {
                     const { week, idx } = item;
                     const isFirstInGroup = wIdxInGroup === 0;
+                    
+                    // Generate dates for the week
+                    const weekDates = Array.from({ length: 7 }).map((_, i) => {
+                      const d = getWeekStartDate(idx);
+                      d.setDate(d.getDate() + i);
+                      return d;
+                    });
+
                     return (
                       <motion.tr 
                         key={idx}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: idx * 0.02 }}
-                        className="border-b border-white/10 hover:bg-white/5 group"
+                        className="border-b border-black/40 hover:bg-stone-100/50 group transition-colors"
                       >
                         {isFirstInGroup && (
-                          <td rowSpan={group.weeks.length} className="p-3 text-center border-r border-white/10 font-black text-2xl text-yellow-500 bg-black/40 shadow-inner">
-                            {group.month}月
+                          <td rowSpan={group.weeks.length} className="p-2 text-center border-r-2 border-black/80 bg-yellow-100/80 align-top pt-6">
+                            <div className="font-black text-2xl text-stone-800 flex flex-col items-center justify-center gap-1">
+                              <span>{group.month}</span>
+                              <span className="text-xl">月</span>
+                            </div>
                           </td>
                         )}
-                        <td className="p-3 text-center font-bold text-yellow-300 text-lg">W{idx + 1}</td>
-                        <td className="p-3 flex justify-center">
-                          {startDate && <MiniCalendar weekStartDate={getWeekStartDate(idx)} onDateClick={(dateStr) => setEventInputModal({ weekIdx: idx, dateStr, groupMonth: group.month })} />}
+                        
+                        {/* Week column */}
+                        <td className="p-2 text-center border-r-2 border-black/80 align-top pt-4">
+                          <div className="inline-block border-2 border-stone-800 px-1.5 py-0.5 text-sm font-bold text-stone-800 bg-white shadow-sm">
+                            {idx + 1}
+                          </div>
                         </td>
+
+                        {/* 7 Date columns */}
+                        {weekDates.map((dateObj, i) => {
+                          const isWeekend = i >= 5;
+                          // Use paper-like highlight colors matching the image
+                          const bgClass = isWeekend ? 'bg-orange-50' : 'bg-teal-50';
+                          const textClass = isWeekend ? 'text-red-600' : 'text-stone-700';
+                          
+                          return (
+                            <td 
+                              key={i}
+                              className={`p-1 text-center font-bold border-r border-black/30 align-top pt-4 ${bgClass} ${textClass} hover:bg-yellow-200 cursor-pointer transition-colors`}
+                              onClick={() => {
+                                 const mStr = String(dateObj.getMonth() + 1).padStart(2, '0');
+                                 const dStr = String(dateObj.getDate()).padStart(2, '0');
+                                 setEventInputModal({ weekIdx: idx, dateStr: `${mStr}/${dStr}`, groupMonth: group.month });
+                              }}
+                              title={`新增 ${dateObj.getMonth() + 1}/${dateObj.getDate()} 行事曆`}
+                            >
+                              {dateObj.getDate()}
+                            </td>
+                          );
+                        })}
+
                         {isFirstInGroup && (
-                          <td rowSpan={group.weeks.length} className="p-3 border-r border-white/10">
+                          <td rowSpan={group.weeks.length} className="p-2 border-r-2 border-black/80 bg-white/50 align-top">
                             <textarea 
                               value={week.events}
                               onChange={(e) => handleMonthEventsChange(group, e.target.value)}
-                              className="w-full h-full bg-black/20 rounded p-3 text-white outline-none focus:bg-white/10 resize-none min-h-[160px] custom-scrollbar text-base font-bold shadow-inner"
-                              placeholder="這裡輸入的內容會同步至每週排程行事曆的「本週重點活動」..."
+                              className="w-full h-full bg-transparent rounded p-2 text-stone-800 outline-none focus:bg-white resize-none min-h-[120px] custom-scrollbar text-[15px] leading-relaxed font-medium transition-colors"
+                              placeholder="行事曆重點活動..."
                             />
                           </td>
                         )}
-                        <td className="p-3">
+                        <td className="p-2 border-r-2 border-black/80 bg-white/50 align-top">
                           <textarea 
                             value={week.theme}
                             onChange={(e) => handleWeekChange(idx, 'theme', e.target.value)}
-                            className="w-full bg-black/20 rounded p-3 text-yellow-100 outline-none focus:bg-white/10 resize-none min-h-[160px] custom-scrollbar text-base font-bold shadow-inner"
-                            placeholder="主題名稱..."
+                            className="w-full bg-transparent rounded p-2 text-stone-800 outline-none focus:bg-white resize-none min-h-[80px] h-full custom-scrollbar text-[15px] font-medium transition-colors"
+                            placeholder="輸入主題..."
                           />
                         </td>
-                        <td className="p-3">
+                        <td className="p-2 bg-white/50 align-top">
                           <textarea 
                             value={week.objectives || ''}
                             onChange={(e) => handleWeekChange(idx, 'objectives', e.target.value)}
-                            className="w-full bg-black/20 rounded p-3 text-blue-100 outline-none focus:bg-white/10 resize-none min-h-[160px] custom-scrollbar text-base font-bold shadow-inner"
-                            placeholder="課程目標..."
+                            className="w-full bg-transparent rounded p-2 text-stone-800 outline-none focus:bg-white resize-none min-h-[80px] h-full custom-scrollbar text-[15px] font-medium transition-colors"
+                            placeholder="輸入課程目標..."
                           />
                         </td>
                       </motion.tr>
