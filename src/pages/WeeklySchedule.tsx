@@ -49,7 +49,7 @@ export default function WeeklySchedule() {
   
   const [classEventsDoc, setClassEventsDoc] = useState<Record<string, any>>({});
   const [calendarActionModal, setCalendarActionModal] = useState<{ isOpen: boolean, dateStr: string }>({ isOpen: false, dateStr: '' });
-  const [eventInputModal, setEventInputModal] = useState<{ isOpen: boolean, initialDateStr: string, isEditing: boolean, editingIndex: number, text: string }>({ isOpen: false, initialDateStr: '', isEditing: false, editingIndex: -1, text: '' });
+  const [eventInputModal, setEventInputModal] = useState<{ isOpen: boolean, hasDate: boolean, dateY: string, dateM: string, dateD: string, isEditing: boolean, editingIndex: number, text: string }>({ isOpen: false, hasDate: false, dateY: '114', dateM: '01', dateD: '01', isEditing: false, editingIndex: -1, text: '' });
   const [themeInputModal, setThemeInputModal] = useState<{ isOpen: boolean, text: string }>({ isOpen: false, text: '' });
   const [alertModal, setAlertModal] = useState<{ isOpen: boolean, message: string }>({ isOpen: false, message: '' });
   const [students, setStudents] = useState<any[]>([]);
@@ -333,19 +333,44 @@ export default function WeeklySchedule() {
   };
 
   const handleActionAddEvent = () => {
-    const dateFormatted = calendarActionModal.dateStr.substring(5).replace('-', '/');
+    const dStr = calendarActionModal.dateStr; // e.g. "2025-08-31"
+    const [y, m, d] = dStr.split('-');
+    const dateY = String(parseInt(y) - 1911);
+    
     setCalendarActionModal({ isOpen: false, dateStr: '' });
-    setEventInputModal({ isOpen: true, initialDateStr: `${dateFormatted} `, isEditing: false, editingIndex: -1, text: '' });
+    setEventInputModal({ 
+      isOpen: true, 
+      hasDate: true, 
+      dateY, 
+      dateM: m, 
+      dateD: d, 
+      isEditing: false, 
+      editingIndex: -1, 
+      text: '' 
+    });
   };
 
   const saveEventAction = async () => {
-    const { isEditing, editingIndex, text, initialDateStr } = eventInputModal;
-    if (!text.trim() && !initialDateStr.trim()) { 
+    const { isEditing, editingIndex, text, hasDate, dateY, dateM, dateD } = eventInputModal;
+    let finalContent = text.trim();
+    
+    if (!finalContent && hasDate) {
+      // Allow saving just the date, or maybe warn?
+      // Let's just use what they have.
+    }
+    
+    if (hasDate && finalContent) {
+      finalContent = `${dateY}/${dateM}/${dateD}: ${finalContent}`;
+    } else if (hasDate && !finalContent) {
+      finalContent = `${dateY}/${dateM}/${dateD}: `;
+    }
+
+    if (!finalContent.trim()) { 
       setAlertModal({ isOpen: true, message: '請輸入活動內容' });
       return; 
     }
 
-    const finalEventText = isEditing ? text : `${initialDateStr}${text}`;
+    const finalEventText = finalContent;
     
     const existingDoc = classEventsDoc[docId] || {};
     const existingWeeks = existingDoc.weeks || {};
@@ -487,6 +512,30 @@ export default function WeeklySchedule() {
     const m = current.getMonth();
     const firstDay = new Date(y, m, 1).getDay();
     const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const prevMonthDays = new Date(y, m, 0).getDate();
+
+    // Generate 42 cells (6 weeks)
+    const calendarCells = [];
+    
+    // Previous month dates
+    for (let i = 0; i < firstDay; i++) {
+      const d = prevMonthDays - firstDay + 1 + i;
+      const dateStr = `${m === 0 ? y - 1 : y}-${String(m === 0 ? 12 : m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      calendarCells.push({ d, dateStr, isCurrentMonth: false });
+    }
+    
+    // Current month dates
+    for (let i = 1; i <= daysInMonth; i++) {
+      const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      calendarCells.push({ d: i, dateStr, isCurrentMonth: true });
+    }
+    
+    // Next month dates
+    const remaining = 42 - calendarCells.length;
+    for (let i = 1; i <= remaining; i++) {
+      const dateStr = `${m === 11 ? y + 1 : y}-${String(m === 11 ? 1 : m + 2).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      calendarCells.push({ d: i, dateStr, isCurrentMonth: false });
+    }
 
     return (
       <div className="bg-black/30 p-4 rounded-xl border border-white/20 w-full shadow-inner mt-4">
@@ -495,22 +544,21 @@ export default function WeeklySchedule() {
           {['日', '一', '二', '三', '四', '五', '六'].map(d => <div key={d}>{d}</div>)}
         </div>
         <div className="grid grid-cols-7 gap-2 text-center text-lg">
-          {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
-          {Array.from({ length: daysInMonth }).map((_, i) => {
-            const d = i + 1;
-            const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          {calendarCells.map((cell, idx) => {
+            const { d, dateStr, isCurrentMonth } = cell;
             const isWeekDay = weekDays.includes(dateStr);
             const teacherLeave = leaves[dateStr];
             let classes = "rounded-md py-1.5 transition-colors cursor-pointer ";
             
-            if (teacherLeave === displayLeadTeacher) classes += "bg-purple-600 font-bold border border-purple-300 shadow-lg text-sm flex items-center justify-center";
-            else if (teacherLeave === displayCoTeacher) classes += "bg-blue-600 font-bold border border-blue-300 shadow-lg text-sm flex items-center justify-center";
-            else if (isWeekDay) classes += "bg-yellow-500/30 font-bold outline outline-2 outline-yellow-400 flex items-center justify-center hover:bg-yellow-500/50";
-            else classes += "text-white/80 hover:bg-white/10 flex items-center justify-center";
+            if (teacherLeave === displayLeadTeacher) classes += "bg-purple-600 font-bold border border-purple-300 shadow-lg text-sm flex items-center justify-center text-white ";
+            else if (teacherLeave === displayCoTeacher) classes += "bg-blue-600 font-bold border border-blue-300 shadow-lg text-sm flex items-center justify-center text-white ";
+            else if (isWeekDay) classes += "bg-yellow-500/30 font-bold outline outline-2 outline-yellow-400 flex items-center justify-center hover:bg-yellow-500/50 text-white ";
+            else if (isCurrentMonth) classes += "text-white/80 hover:bg-white/10 flex items-center justify-center ";
+            else classes += "text-white/20 hover:bg-white/5 flex items-center justify-center ";
 
             return (
               <div 
-                key={d} 
+                key={idx} 
                 className={classes} 
                 title={teacherLeave ? `${teacherLeave}請假` : '點擊新增活動/便利貼'}
                 onClick={() => setCalendarActionModal({ isOpen: true, dateStr })}
@@ -603,9 +651,53 @@ export default function WeeklySchedule() {
               </h2>
               
               <div className="mb-4">
-                {!eventInputModal.isEditing && eventInputModal.initialDateStr && (
-                  <div className="text-sm text-yellow-100 mb-2 font-bold">自動帶入日期：{eventInputModal.initialDateStr}</div>
-                )}
+                <div className="mb-4 bg-black/20 p-3 rounded-lg border border-white/10">
+                  <label className="flex items-center gap-2 text-white font-bold cursor-pointer mb-2">
+                    <input 
+                      type="checkbox" 
+                      checked={eventInputModal.hasDate} 
+                      onChange={(e) => setEventInputModal({...eventInputModal, hasDate: e.target.checked})}
+                      className="w-4 h-4 accent-yellow-500"
+                    />
+                    加入日期
+                  </label>
+                  
+                  {eventInputModal.hasDate && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <select 
+                        value={eventInputModal.dateY}
+                        onChange={(e) => setEventInputModal({...eventInputModal, dateY: e.target.value})}
+                        className="bg-white text-black font-bold px-2 py-1 rounded outline-none w-20 text-center"
+                      >
+                        <option value={settings.academicYear}>{settings.academicYear}</option>
+                        <option value={String(parseInt(settings.academicYear) + 1)}>{parseInt(settings.academicYear) + 1}</option>
+                      </select>
+                      <span className="text-white/80 font-bold">年</span>
+                      
+                      <select 
+                        value={eventInputModal.dateM}
+                        onChange={(e) => setEventInputModal({...eventInputModal, dateM: e.target.value})}
+                        className="bg-white text-black font-bold px-2 py-1 rounded outline-none w-16 text-center"
+                      >
+                        {Array.from({ length: 12 }).map((_, i) => (
+                          <option key={i} value={String(i + 1).padStart(2, '0')}>{String(i + 1).padStart(2, '0')}</option>
+                        ))}
+                      </select>
+                      <span className="text-white/80 font-bold">月</span>
+
+                      <select 
+                        value={eventInputModal.dateD}
+                        onChange={(e) => setEventInputModal({...eventInputModal, dateD: e.target.value})}
+                        className="bg-white text-black font-bold px-2 py-1 rounded outline-none w-16 text-center"
+                      >
+                        {Array.from({ length: 31 }).map((_, i) => (
+                          <option key={i} value={String(i + 1).padStart(2, '0')}>{String(i + 1).padStart(2, '0')}</option>
+                        ))}
+                      </select>
+                      <span className="text-white/80 font-bold">日</span>
+                    </div>
+                  )}
+                </div>
                 <textarea 
                   value={eventInputModal.text}
                   onChange={(e) => setEventInputModal({ ...eventInputModal, text: e.target.value })}
@@ -616,7 +708,7 @@ export default function WeeklySchedule() {
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
-                <button onClick={() => setEventInputModal({ isOpen: false, initialDateStr: '', isEditing: false, editingIndex: -1, text: '' })} className="chalk-btn bg-black/20 text-white hover:bg-black/40">取消</button>
+                <button onClick={() => setEventInputModal({ isOpen: false, hasDate: false, dateY: '114', dateM: '01', dateD: '01', isEditing: false, editingIndex: -1, text: '' })} className="chalk-btn bg-black/20 text-white hover:bg-black/40">取消</button>
                 <button onClick={saveEventAction} className="chalk-btn bg-yellow-600/80 hover:bg-yellow-500 font-bold px-6">儲存</button>
               </div>
             </motion.div>
@@ -712,20 +804,63 @@ export default function WeeklySchedule() {
                      ) : (
                        combinedEvents.slice((eventsPage - 1) * eventsPageSize, eventsPage * eventsPageSize).map((ev, i) => {
                          const actualIndex = (eventsPage - 1) * eventsPageSize + i;
+                         
+                         let dateBadge = null;
+                         let contentText = ev.text;
+                         let parsedHasDate = false;
+                         let pY = settings.academicYear;
+                         let pM = '01';
+                         let pD = '01';
+                         
+                         const match = ev.text.match(/^(\d{3,4})\/(\d{2})\/(\d{2}):\s*(.*)/s);
+                         if (match) {
+                           const [_, y, m, d, rest] = match;
+                           parsedHasDate = true;
+                           pY = y;
+                           pM = m;
+                           pD = d;
+                           contentText = rest;
+                           const dateObj = new Date(parseInt(y) + 1911, parseInt(m) - 1, parseInt(d));
+                           const dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][dateObj.getDay()];
+                           dateBadge = (
+                             <div className="bg-stone-800 text-yellow-300 px-2 py-0.5 rounded text-xs mb-1 inline-block shadow-sm font-bold border border-yellow-500/30">
+                               {`${y}/${m}/${d} (星期${dayOfWeek})`}
+                             </div>
+                           );
+                         }
+
                          return (
                            <div key={actualIndex} className="bg-white/5 border border-white/10 rounded p-2 flex justify-between items-center group transition-colors hover:bg-white/10">
                              <div className="flex gap-2 items-start text-sm">
-                               <span className="text-yellow-300 font-bold">{actualIndex + 1}.</span>
+                               <span className="text-yellow-300 font-bold mt-1">{actualIndex + 1}.</span>
                                {ev.type === 'school' ? (
-                                 <span className="bg-purple-600/50 text-purple-200 px-1.5 py-0.5 rounded text-[10px] font-bold border border-purple-400/50 mt-0.5 whitespace-nowrap">園所</span>
+                                 <span className="bg-purple-600/50 text-purple-200 px-1.5 py-0.5 rounded text-[10px] font-bold border border-purple-400/50 mt-1 whitespace-nowrap">園所</span>
                                ) : (
-                                 <span className="bg-blue-600/50 text-blue-200 px-1.5 py-0.5 rounded text-[10px] font-bold border border-blue-400/50 mt-0.5 whitespace-nowrap">班級</span>
+                                 <span className="bg-blue-600/50 text-blue-200 px-1.5 py-0.5 rounded text-[10px] font-bold border border-blue-400/50 mt-1 whitespace-nowrap">班級</span>
                                )}
-                               <span className="text-white/90 whitespace-pre-wrap">{ev.text}</span>
+                               <div className="flex-1">
+                                 {dateBadge}
+                                 <div className="text-white/90 whitespace-pre-wrap leading-relaxed">{contentText}</div>
+                               </div>
                              </div>
                              {ev.type === 'class' && (
                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
-                                 <button onClick={() => setEventInputModal({isOpen: true, initialDateStr: '', isEditing: true, editingIndex: ev.originalIndex, text: ev.text})} className="text-blue-300 hover:text-white p-1 rounded hover:bg-blue-500/50" title="修改"><PenTool className="w-4 h-4" /></button>
+                                 <button 
+                                   onClick={() => setEventInputModal({
+                                     isOpen: true, 
+                                     hasDate: parsedHasDate, 
+                                     dateY: pY, 
+                                     dateM: pM, 
+                                     dateD: pD, 
+                                     isEditing: true, 
+                                     editingIndex: ev.originalIndex, 
+                                     text: contentText
+                                   })} 
+                                   className="text-blue-300 hover:text-white p-1 rounded hover:bg-blue-500/50" 
+                                   title="修改"
+                                 >
+                                   <PenTool className="w-4 h-4" />
+                                 </button>
                                  <button onClick={() => setConfirmDeleteEventIndex(ev.originalIndex)} className="text-red-300 hover:text-white p-1 rounded hover:bg-red-500/50" title="刪除"><Trash2 className="w-4 h-4" /></button>
                                </div>
                              )}

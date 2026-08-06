@@ -33,6 +33,7 @@ export default function AnnualCalendar() {
   const [startDate, setStartDate] = useState('');
   const [weeks, setWeeks] = useState<WeekData[]>(Array(21).fill({ theme: '', events: '', objectives: '', days: Array(7).fill('') }));
   const [loading, setLoading] = useState(true);
+  const [alertMessage, setAlertMessage] = useState('');
 
   // Unified Modal for Add / Edit
   const [actionModal, setActionModal] = useState<{
@@ -242,6 +243,14 @@ export default function AnnualCalendar() {
 
   return (
     <div className="max-w-[1400px] mx-auto animate-fade-in space-y-6">
+      <ConfirmModal 
+        isOpen={!!alertMessage}
+        type="alert"
+        title="注意"
+        message={alertMessage}
+        onConfirm={() => setAlertMessage('')}
+        onCancel={() => setAlertMessage('')}
+      />
 
       {/* Unified Action Modal */}
       <AnimatePresence>
@@ -433,6 +442,13 @@ export default function AnnualCalendar() {
                                  const yStr = String(dateObj.getFullYear() - 1911);
                                  const mStr = String(dateObj.getMonth() + 1).padStart(2, '0');
                                  const dStr = String(dateObj.getDate()).padStart(2, '0');
+                                 
+                                 const datePrefix = `${yStr}/${mStr}/${dStr}:`;
+                                 const hasEvent = group.weeks[0].week.events.includes(datePrefix);
+                                 if (hasEvent) {
+                                   setAlertMessage(`注意：${yStr}/${mStr}/${dStr} 已經有安排活動了！`);
+                                 }
+
                                  setActionModal({ 
                                    isOpen: true, 
                                    isEdit: false, 
