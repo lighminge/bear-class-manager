@@ -32,6 +32,14 @@ export default function AnnualCalendar() {
   const [eventInputModal, setEventInputModal] = useState<{ weekIdx: number, dateStr: string, groupMonth: number } | null>(null);
   const [eventInputValue, setEventInputValue] = useState('');
 
+  // Edit/Delete event block modal
+  const [editEventModal, setEditEventModal] = useState<{ group: any, lineIndex: number, text: string } | null>(null);
+  const [editEventValue, setEditEventValue] = useState('');
+
+  useEffect(() => {
+    if (editEventModal) setEditEventValue(editEventModal.text);
+  }, [editEventModal]);
+
   const getDefaultStartDate = (y: string, s: string) => {
     const gregorianYear = parseInt(y) + 1911;
     const target = s === '上學期' ? new Date(gregorianYear, 7, 30) : new Date(gregorianYear + 1, 1, 11);
@@ -161,6 +169,28 @@ export default function AnnualCalendar() {
     setEventInputValue('');
   };
 
+  const saveEditedEvent = () => {
+    if (!editEventModal) return;
+    const { group, lineIndex } = editEventModal;
+    const lines = group.weeks[0].week.events.split('\n');
+    if (editEventValue.trim() === '') {
+      lines.splice(lineIndex, 1);
+    } else {
+      lines[lineIndex] = editEventValue;
+    }
+    handleMonthEventsChange(group, lines.join('\n'));
+    setEditEventModal(null);
+  };
+
+  const deleteEditedEvent = () => {
+    if (!editEventModal) return;
+    const { group, lineIndex } = editEventModal;
+    const lines = group.weeks[0].week.events.split('\n');
+    lines.splice(lineIndex, 1);
+    handleMonthEventsChange(group, lines.join('\n'));
+    setEditEventModal(null);
+  };
+
   return (
     <div className="max-w-[1400px] mx-auto animate-fade-in space-y-6">
       <ConfirmModal 
@@ -194,6 +224,37 @@ export default function AnnualCalendar() {
               <div className="flex justify-end gap-3">
                 <button onClick={() => setEventInputModal(null)} className="chalk-btn bg-black/20 text-white/80 hover:bg-black/40">取消</button>
                 <button onClick={saveEventContent} className="chalk-btn bg-yellow-600/80 hover:bg-yellow-500 font-bold px-6">確定</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Existing Event Modal */}
+      <AnimatePresence>
+        {editEventModal && (
+          <div className="fixed inset-0 flex items-center justify-center z-[100] px-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditEventModal(null)} />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="chalk-box relative z-10 max-w-md w-full bg-[#2b5b3f] shadow-2xl p-6">
+              <div className="flex justify-between items-center mb-4 border-b border-white/20 pb-3">
+                <h3 className="text-xl font-bold text-yellow-300">
+                  修改活動內容
+                </h3>
+                <button onClick={() => setEditEventModal(null)} className="text-white/50 hover:text-white"><X className="w-6 h-6" /></button>
+              </div>
+              <textarea 
+                value={editEventValue} 
+                onChange={(e) => setEditEventValue(e.target.value)} 
+                className="chalk-input w-full min-h-[120px] resize-none bg-white text-black font-bold p-3 rounded mb-4" 
+                placeholder="活動內容..." 
+                autoFocus
+              />
+              <div className="flex justify-between gap-3">
+                <button onClick={deleteEditedEvent} className="chalk-btn bg-red-600/80 text-white hover:bg-red-500 font-bold px-6">刪除活動</button>
+                <div className="flex gap-3">
+                  <button onClick={() => setEditEventModal(null)} className="chalk-btn bg-black/20 text-white/80 hover:bg-black/40">取消</button>
+                  <button onClick={saveEditedEvent} className="chalk-btn bg-yellow-600/80 hover:bg-yellow-500 font-bold px-6">儲存</button>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -319,13 +380,40 @@ export default function AnnualCalendar() {
                         })}
 
                         {isFirstInGroup && (
-                          <td rowSpan={group.weeks.length} className="p-2 border-r-2 border-black/80 bg-white/50 align-top">
-                            <textarea 
-                              value={week.events}
-                              onChange={(e) => handleMonthEventsChange(group, e.target.value)}
-                              className="w-full h-full bg-transparent rounded p-2 text-stone-800 outline-none focus:bg-white resize-none min-h-[120px] custom-scrollbar text-[15px] leading-relaxed font-medium transition-colors"
-                              placeholder="行事曆重點活動..."
-                            />
+                          <td rowSpan={group.weeks.length} className="p-2 border-r-2 border-black/80 bg-white/50 align-top h-full">
+                            <div className="flex flex-col h-full min-h-[120px] gap-2">
+                              <div className="flex-1 flex flex-col gap-1.5 pt-1">
+                                {week.events.split('\n').map((line, lineIndex) => {
+                                  if (line.trim() === '') return null;
+                                  return (
+                                    <div 
+                                      key={lineIndex} 
+                                      onClick={() => setEditEventModal({ group, lineIndex, text: line })}
+                                      className="bg-yellow-200/80 hover:bg-yellow-300 border border-yellow-400/80 text-stone-800 px-2 py-1.5 rounded shadow-sm text-[15px] font-bold cursor-pointer transition-transform hover:-translate-y-0.5"
+                                      title="點擊修改或刪除活動"
+                                    >
+                                      {line}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div className="mt-auto pt-2">
+                                <input 
+                                  type="text" 
+                                  placeholder="+ 快速新增活動 (輸入完按Enter)"
+                                  className="w-full bg-white/60 border border-stone-300 rounded px-2 py-1.5 text-sm font-medium text-stone-700 outline-none focus:bg-white focus:border-yellow-500 transition-colors shadow-inner"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                                      const newText = e.currentTarget.value.trim();
+                                      const currentEvents = week.events;
+                                      const newEvents = currentEvents ? `${currentEvents}\n${newText}` : newText;
+                                      handleMonthEventsChange(group, newEvents);
+                                      e.currentTarget.value = '';
+                                    }
+                                  }}
+                                />
+                              </div>
+                            </div>
                           </td>
                         )}
                         <td className="p-2 border-r-2 border-black/80 bg-white/50 align-top">
