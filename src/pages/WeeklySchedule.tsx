@@ -392,7 +392,7 @@ export default function WeeklySchedule() {
     
     try {
       await setDoc(doc(db, 'bear_classEvents', docId), newDocData, { merge: true });
-      setEventInputModal({ isOpen: false, initialDateStr: '', isEditing: false, editingIndex: -1, text: '' });
+      setEventInputModal({ isOpen: false, hasDate: false, dateY: '114', dateM: '01', dateD: '01', isEditing: false, editingIndex: -1, text: '' });
       setAlertModal({ isOpen: true, message: '活動儲存成功！' });
     } catch(e) {
       setAlertModal({ isOpen: true, message: '儲存活動失敗，請稍後再試。' });
@@ -793,7 +793,7 @@ export default function WeeklySchedule() {
                 <div className="bg-black/20 border border-white/20 rounded-xl p-5 shadow-inner flex flex-col relative h-full">
                   <div className="flex justify-between items-center border-b border-white/10 pb-2 mb-4">
                     <h3 className="text-yellow-200 font-bold text-lg">📌 本週重點活動</h3>
-                    <button onClick={() => setEventInputModal({isOpen: true, initialDateStr: '', isEditing: false, editingIndex: -1, text: ''})} className="chalk-btn bg-green-600/80 hover:bg-green-500 text-xs px-2 py-1 font-bold">
+                    <button onClick={() => setEventInputModal({isOpen: true, hasDate: false, dateY: settings.academicYear, dateM: '01', dateD: '01', isEditing: false, editingIndex: -1, text: ''})} className="chalk-btn bg-green-600/80 hover:bg-green-500 text-xs px-2 py-1 font-bold">
                       <Plus className="w-3 h-3 inline mr-1"/>新增活動
                     </button>
                   </div>
