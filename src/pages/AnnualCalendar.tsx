@@ -17,6 +17,17 @@ interface AnnualData {
   weeks: WeekData[];
 }
 
+// Pre-defined pastel colors for blocks to distinguish them
+const blockColors = [
+  'bg-yellow-200 hover:bg-yellow-300 border-yellow-400',
+  'bg-blue-200 hover:bg-blue-300 border-blue-400',
+  'bg-green-200 hover:bg-green-300 border-green-400',
+  'bg-pink-200 hover:bg-pink-300 border-pink-400',
+  'bg-purple-200 hover:bg-purple-300 border-purple-400',
+  'bg-orange-200 hover:bg-orange-300 border-orange-400',
+  'bg-teal-200 hover:bg-teal-300 border-teal-400'
+];
+
 export default function AnnualCalendar() {
   const [globalYear, setGlobalYear] = useState('114');
   const [semester, setSemester] = useState('上學期');
@@ -148,11 +159,14 @@ export default function AnnualCalendar() {
 
   const getBlocks = (rawText: string) => {
     if (!rawText) return [];
-    const hasDoubleNewline = /(?:\r?\n){2,}/.test(rawText);
-    const blocks = hasDoubleNewline 
-      ? rawText.split(/(?:\r?\n){2,}/) 
-      : rawText.split('\n');
-    return blocks.filter(b => b.trim() !== '');
+    // We use a robust Markdown-like separator '---' to ensure multi-line blocks never break.
+    // This allows the user to have as many empty lines in a block as they want without it splitting.
+    if (rawText.includes('---')) {
+      return rawText.split(/\n*\s*---\s*\n*/).filter(b => b.trim() !== '');
+    }
+    // If no '---' is found, it's either empty or a single block (legacy data might be merged, which is acceptable)
+    if (rawText.trim() === '') return [];
+    return [rawText.trim()];
   };
 
   const saveModalContent = () => {
@@ -179,7 +193,8 @@ export default function AnnualCalendar() {
       }
     }
 
-    handleMonthEventsChange(group, blocks.join('\n\n'));
+    // Join blocks with the robust delimiter
+    handleMonthEventsChange(group, blocks.join('\n\n---\n\n'));
     setActionModal(null);
   };
 
@@ -188,7 +203,7 @@ export default function AnnualCalendar() {
     const { group, blockIndex } = actionModal;
     const blocks = getBlocks(group.weeks[0].week.events);
     blocks.splice(blockIndex, 1);
-    handleMonthEventsChange(group, blocks.join('\n\n'));
+    handleMonthEventsChange(group, blocks.join('\n\n---\n\n'));
     setActionModal(null);
   };
 
@@ -277,7 +292,7 @@ export default function AnnualCalendar() {
                 {actionModal.isEdit ? (
                   <button onClick={deleteModalContent} className="chalk-btn bg-red-600/80 text-white hover:bg-red-500 font-bold px-6">刪除活動</button>
                 ) : (
-                  <div /> /* Empty div for spacing */
+                  <div />
                 )}
                 <div className="flex gap-3">
                   <button onClick={() => setActionModal(null)} className="chalk-btn bg-black/20 text-white/80 hover:bg-black/40">取消</button>
@@ -413,10 +428,33 @@ export default function AnnualCalendar() {
                         })}
 
                         {isFirstInGroup && (
-                          <td rowSpan={group.weeks.length} className="p-2 border-r-2 border-black/80 bg-white/50 align-top h-full">
-                            <div className="flex flex-col h-full min-h-[120px] gap-2">
-                              <div className="flex-1 flex flex-col gap-2 pt-1">
+                          <td rowSpan={group.weeks.length} className="p-2 border-r-2 border-black/80 bg-white/50 align-top h-full relative">
+                            {/* "Add Event" button anchored at the top right of the cell */}
+                            <div className="absolute top-2 right-2 z-10">
+                              <button 
+                                onClick={() => setActionModal({
+                                  isOpen: true,
+                                  isEdit: false,
+                                  group: group,
+                                  text: '',
+                                  hasDate: false,
+                                  dateY: globalYear,
+                                  dateM: String(group.month).padStart(2, '0'),
+                                  dateD: '01'
+                                })}
+                                className="bg-stone-700 hover:bg-stone-800 text-white font-bold px-2 py-1 rounded flex items-center gap-1 text-xs shadow transition-colors"
+                                title="在此月份新增行事曆"
+                              >
+                                <Plus className="w-3 h-3" />
+                                新增活動
+                              </button>
+                            </div>
+
+                            <div className="flex flex-col h-full min-h-[120px] gap-2 pt-8">
+                              <div className="flex-1 flex flex-col gap-2">
                                 {getBlocks(week.events).map((blockText, blockIndex) => {
+                                  // Assign a distinct color to each block sequentially
+                                  const colorClass = blockColors[blockIndex % blockColors.length];
                                   return (
                                     <div 
                                       key={blockIndex} 
@@ -431,31 +469,13 @@ export default function AnnualCalendar() {
                                         dateM: '01',
                                         dateD: '01'
                                       })}
-                                      className="bg-yellow-200/80 hover:bg-yellow-300 border border-yellow-400/80 text-stone-800 px-2.5 py-2 rounded shadow-sm text-[15px] font-bold cursor-pointer transition-transform hover:-translate-y-0.5 whitespace-pre-wrap leading-relaxed"
+                                      className={`${colorClass} border-2 text-stone-800 px-2.5 py-2 rounded shadow-sm text-[15px] font-bold cursor-pointer transition-transform hover:-translate-y-0.5 whitespace-pre-wrap leading-relaxed`}
                                       title="點擊修改或刪除活動"
                                     >
                                       {blockText}
                                     </div>
                                   );
                                 })}
-                              </div>
-                              <div className="mt-auto pt-2 flex justify-center">
-                                <button 
-                                  onClick={() => setActionModal({
-                                    isOpen: true,
-                                    isEdit: false,
-                                    group: group,
-                                    text: '',
-                                    hasDate: false,
-                                    dateY: globalYear,
-                                    dateM: String(group.month).padStart(2, '0'),
-                                    dateD: '01'
-                                  })}
-                                  className="chalk-btn bg-stone-700 text-white hover:bg-stone-600 font-bold px-4 py-1.5 flex items-center gap-1 text-sm shadow-md"
-                                >
-                                  <Plus className="w-4 h-4" />
-                                  新增活動
-                                </button>
                               </div>
                             </div>
                           </td>
