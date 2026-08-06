@@ -1,9 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Calendar, Save, Loader2, X, Plus, ArrowUpDown } from 'lucide-react';
+import { Calendar, Loader2, X, Plus, ArrowUpDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ConfirmModal from '../components/ConfirmModal';
 
 interface WeekData {
   theme: string;
@@ -34,10 +33,6 @@ export default function AnnualCalendar() {
   const [startDate, setStartDate] = useState('');
   const [weeks, setWeeks] = useState<WeekData[]>(Array(21).fill({ theme: '', events: '', objectives: '', days: Array(7).fill('') }));
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-  
-  const [showConfirm, setShowConfirm] = useState(false);
 
   // Unified Modal for Add / Edit
   const [actionModal, setActionModal] = useState<{
@@ -98,18 +93,22 @@ export default function AnnualCalendar() {
         setStartDate(getDefaultStartDate(globalYear, semester));
         setWeeks(Array.from({ length: 21 }).map(() => ({ theme: '', events: '', objectives: '', days: Array(7).fill('') })));
       }
-      setHasChanges(false);
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, [globalYear, semester, docId]);
 
-  const handleWeekChange = (index: number, field: keyof WeekData, value: string) => {
-    const newWeeks = [...weeks];
-    newWeeks[index] = { ...newWeeks[index], [field]: value };
-    setWeeks(newWeeks);
-    setHasChanges(true);
+  const saveToDb = async (newWeeks: WeekData[], newStartDate?: string) => {
+    try {
+      await setDoc(doc(db, 'bear_annualEvents', docId), {
+        startDate: newStartDate || startDate,
+        weeks: newWeeks
+      }, { merge: true });
+    } catch (error) {
+      console.error("Auto-save failed", error);
+      alert('自動儲存失敗，請檢查網路連線');
+    }
   };
 
   const handleMonthEventsChange = (group: { month: number, weeks: { week: WeekData, idx: number }[] }, value: string) => {
@@ -118,24 +117,14 @@ export default function AnnualCalendar() {
       newWeeks[item.idx] = { ...newWeeks[item.idx], events: value };
     });
     setWeeks(newWeeks);
-    setHasChanges(true);
+    saveToDb(newWeeks);
   };
 
-  const handleSave = async () => {
-    setShowConfirm(false);
-    setSaving(true);
-    try {
-      await setDoc(doc(db, 'bear_annualEvents', docId), {
-        startDate,
-        weeks
-      }, { merge: true });
-      setHasChanges(false);
-    } catch (error) {
-      console.error(error);
-      alert('儲存失敗');
-    } finally {
-      setSaving(false);
-    }
+  const handleWeekChange = (index: number, field: keyof WeekData, value: string) => {
+    const newWeeks = [...weeks];
+    newWeeks[index] = { ...newWeeks[index], [field]: value };
+    setWeeks(newWeeks);
+    saveToDb(newWeeks);
   };
 
   const getWeekStartDate = (weekIndex: number) => {
@@ -253,14 +242,6 @@ export default function AnnualCalendar() {
 
   return (
     <div className="max-w-[1400px] mx-auto animate-fade-in space-y-6">
-      <ConfirmModal 
-        isOpen={showConfirm}
-        type="confirm"
-        title="儲存變更"
-        message={`確定要儲存 ${globalYear}學年度 ${semester} 的年度行事曆嗎？`}
-        onConfirm={handleSave}
-        onCancel={() => setShowConfirm(false)}
-      />
 
       {/* Unified Action Modal */}
       <AnimatePresence>
@@ -367,18 +348,17 @@ export default function AnnualCalendar() {
             <input 
               type="date" 
               value={startDate} 
-              onChange={(e) => { setStartDate(e.target.value); setHasChanges(true); }} 
-              className="chalk-input bg-white/10 px-2 rounded"
+              onChange={(e) => { 
+                const newDate = e.target.value;
+                setStartDate(newDate); 
+                saveToDb(weeks, newDate);
+              }} 
+              className="chalk-input bg-white/10 px-2 rounded cursor-pointer"
             />
           </div>
-          <button 
-            onClick={() => setShowConfirm(true)} 
-            disabled={saving || (!hasChanges && !saving)}
-            className={`chalk-btn transition-colors ${hasChanges ? 'bg-yellow-600 hover:bg-yellow-500 shadow-lg shadow-yellow-500/20 font-bold' : 'opacity-50 cursor-not-allowed'}`}
-          >
-            {saving ? <Loader2 className="animate-spin w-5 h-5" /> : <Save className="w-5 h-5" />}
-            儲存變更
-          </button>
+          <div className="flex items-center text-yellow-300 font-bold bg-black/20 px-3 py-1.5 rounded-full text-sm">
+            ✓ 編輯內容將自動儲存
+          </div>
         </div>
       </div>
 
@@ -551,8 +531,8 @@ export default function AnnualCalendar() {
                             </div>
                           </td>
                         )}
-                        <td className="p-2 border-r-2 border-black/80 bg-white/50 align-top relative">
-                            <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <td className="p-2 border-r-2 border-black/80 bg-white/50 align-top relative group/td">
+                            <div className="absolute top-1 right-1 z-10 opacity-0 group-hover/td:opacity-100 transition-opacity">
                               <button 
                                 onClick={() => setActionModal({
                                   isOpen: true,
@@ -598,8 +578,8 @@ export default function AnnualCalendar() {
                               })}
                             </div>
                         </td>
-                        <td className="p-2 bg-white/50 align-top relative">
-                            <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <td className="p-2 bg-white/50 align-top relative group/td">
+                            <div className="absolute top-1 right-1 z-10 opacity-0 group-hover/td:opacity-100 transition-opacity">
                               <button 
                                 onClick={() => setActionModal({
                                   isOpen: true,
