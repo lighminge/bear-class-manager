@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Calendar, Loader2, X, Plus, ArrowUpDown } from 'lucide-react';
@@ -162,7 +162,7 @@ export default function AnnualCalendar() {
     const { isEdit, fieldType, group, weekIdx, blockIndex, text, hasDate, dateY, dateM, dateD } = actionModal;
     
     let finalContent = text.trim();
-    if (!isEdit && hasDate && finalContent) {
+    if (hasDate && finalContent) {
       finalContent = `${dateY}/${dateM}/${dateD}: ${finalContent}`;
     }
 
@@ -256,7 +256,7 @@ export default function AnnualCalendar() {
                 <button onClick={() => setActionModal(null)} className="text-white/50 hover:text-white"><X className="w-6 h-6" /></button>
               </div>
 
-              {!actionModal.isEdit && (
+              {actionModal.fieldType === 'events' && (
                 <div className="mb-4 bg-black/20 p-3 rounded-lg border border-white/10">
                   <label className="flex items-center gap-2 text-white font-bold cursor-pointer mb-2">
                     <input 
@@ -491,9 +491,20 @@ export default function AnnualCalendar() {
                                   // Parse Date and Day of Week
                                   let dateBadge = null;
                                   let contentText = blockText;
+                                  let parsedHasDate = false;
+                                  let pY = globalYear;
+                                  let pM = '01';
+                                  let pD = '01';
+                                  
                                   const match = blockText.match(/^(\d{3,4})\/(\d{2})\/(\d{2}):\s*(.*)/s);
                                   if (match) {
                                     const [_, y, m, d, rest] = match;
+                                    parsedHasDate = true;
+                                    pY = y;
+                                    pM = m;
+                                    pD = d;
+                                    contentText = rest;
+                                    
                                     const dateObj = new Date(parseInt(y) + 1911, parseInt(m) - 1, parseInt(d));
                                     const dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][dateObj.getDay()];
                                     dateBadge = (
@@ -501,7 +512,6 @@ export default function AnnualCalendar() {
                                         {`${y}/${m}/${d} (星期${dayOfWeek})`}
                                       </div>
                                     );
-                                    contentText = rest;
                                   }
 
                                   return (
@@ -513,11 +523,11 @@ export default function AnnualCalendar() {
                                         fieldType: 'events',
                                         group: group,
                                         blockIndex: blockIndex,
-                                        text: blockText,
-                                        hasDate: false,
-                                        dateY: globalYear,
-                                        dateM: '01',
-                                        dateD: '01'
+                                        text: contentText,
+                                        hasDate: parsedHasDate,
+                                        dateY: pY,
+                                        dateM: pM,
+                                        dateD: pD
                                       })}
                                       className={`${colorClass} border-2 text-stone-800 px-2.5 py-2 rounded shadow-sm text-[15px] font-bold cursor-pointer transition-transform hover:-translate-y-0.5 leading-relaxed`}
                                       title="點擊修改或刪除活動"

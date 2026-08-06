@@ -94,7 +94,16 @@ export default function WeeklySchedule() {
   const classCustomTheme = classEventsDoc[docId]?.themes?.[viewingWeek];
   const displayTheme = classCustomTheme !== undefined ? classCustomTheme : currentTheme;
 
-  const schoolEventsList = schoolEventsText.split('\n').filter(s => s.trim() !== '');
+  const getBlocks = (rawText: string) => {
+    if (!rawText) return [];
+    if (rawText.includes('---')) {
+      return rawText.split(/\n*\s*---\s*\n*/).filter(b => b.trim() !== '');
+    }
+    if (rawText.trim() === '') return [];
+    return [rawText.trim()];
+  };
+
+  const schoolEventsList = getBlocks(schoolEventsText);
   const classEventsList = (classEventsDoc[docId]?.weeks?.[viewingWeek] || []) as string[];
 
   const combinedEvents = [
