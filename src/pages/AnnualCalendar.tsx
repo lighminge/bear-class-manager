@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Calendar, Save, Loader2, X, Plus } from 'lucide-react';
+import { Calendar, Save, Loader2, X, Plus, ArrowUpDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -43,7 +43,9 @@ export default function AnnualCalendar() {
   const [actionModal, setActionModal] = useState<{
     isOpen: boolean;
     isEdit: boolean;
-    group: any;
+    fieldType: 'events' | 'theme' | 'objectives';
+    group?: any; // Only needed for 'events'
+    weekIdx?: number; // Only needed for 'theme' and 'objectives'
     blockIndex?: number;
     text: string;
     hasDate: boolean;
@@ -159,27 +161,32 @@ export default function AnnualCalendar() {
 
   const getBlocks = (rawText: string) => {
     if (!rawText) return [];
-    // We use a robust Markdown-like separator '---' to ensure multi-line blocks never break.
-    // This allows the user to have as many empty lines in a block as they want without it splitting.
     if (rawText.includes('---')) {
       return rawText.split(/\n*\s*---\s*\n*/).filter(b => b.trim() !== '');
     }
-    // If no '---' is found, it's either empty or a single block (legacy data might be merged, which is acceptable)
     if (rawText.trim() === '') return [];
     return [rawText.trim()];
   };
 
   const saveModalContent = () => {
     if (!actionModal) return;
-    const { isEdit, group, blockIndex, text, hasDate, dateY, dateM, dateD } = actionModal;
+    const { isEdit, fieldType, group, weekIdx, blockIndex, text, hasDate, dateY, dateM, dateD } = actionModal;
     
     let finalContent = text.trim();
     if (!isEdit && hasDate && finalContent) {
       finalContent = `${dateY}/${dateM}/${dateD}: ${finalContent}`;
     }
 
-    const currentEvents = group.weeks[0].week.events;
-    const blocks = getBlocks(currentEvents);
+    let rawText = '';
+    if (fieldType === 'events') {
+      rawText = group.weeks[0].week.events;
+    } else if (fieldType === 'theme') {
+      rawText = weeks[weekIdx!].theme;
+    } else {
+      rawText = weeks[weekIdx!].objectives || '';
+    }
+
+    const blocks = getBlocks(rawText);
 
     if (isEdit && blockIndex !== undefined) {
       if (finalContent === '') {
@@ -193,18 +200,55 @@ export default function AnnualCalendar() {
       }
     }
 
-    // Join blocks with the robust delimiter
-    handleMonthEventsChange(group, blocks.join('\n\n---\n\n'));
+    const newValue = blocks.join('\n\n---\n\n');
+
+    if (fieldType === 'events') {
+      handleMonthEventsChange(group, newValue);
+    } else {
+      handleWeekChange(weekIdx!, fieldType, newValue);
+    }
     setActionModal(null);
   };
 
   const deleteModalContent = () => {
     if (!actionModal || !actionModal.isEdit || actionModal.blockIndex === undefined) return;
-    const { group, blockIndex } = actionModal;
-    const blocks = getBlocks(group.weeks[0].week.events);
+    const { fieldType, group, weekIdx, blockIndex } = actionModal;
+    
+    let rawText = '';
+    if (fieldType === 'events') {
+      rawText = group.weeks[0].week.events;
+    } else if (fieldType === 'theme') {
+      rawText = weeks[weekIdx!].theme;
+    } else {
+      rawText = weeks[weekIdx!].objectives || '';
+    }
+
+    const blocks = getBlocks(rawText);
     blocks.splice(blockIndex, 1);
-    handleMonthEventsChange(group, blocks.join('\n\n---\n\n'));
+    const newValue = blocks.join('\n\n---\n\n');
+
+    if (fieldType === 'events') {
+      handleMonthEventsChange(group, newValue);
+    } else {
+      handleWeekChange(weekIdx!, fieldType, newValue);
+    }
     setActionModal(null);
+  };
+
+  const sortBlocksByDate = (group: any) => {
+    const rawText = group.weeks[0].week.events;
+    const blocks = getBlocks(rawText);
+    blocks.sort((a, b) => {
+      const dateA = a.match(/^(\d+)\/(\d+)\/(\d+):/);
+      const dateB = b.match(/^(\d+)\/(\d+)\/(\d+):/);
+      if (!dateA && !dateB) return 0;
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+      const timeA = new Date(parseInt(dateA[1]) + 1911, parseInt(dateA[2]) - 1, parseInt(dateA[3])).getTime();
+      const timeB = new Date(parseInt(dateB[1]) + 1911, parseInt(dateB[2]) - 1, parseInt(dateB[3])).getTime();
+      return timeA - timeB;
+    });
+    handleMonthEventsChange(group, blocks.join('\n\n---\n\n'));
   };
 
   return (
@@ -226,7 +270,7 @@ export default function AnnualCalendar() {
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="chalk-box relative z-10 max-w-md w-full bg-[#2b5b3f] shadow-2xl p-6">
               <div className="flex justify-between items-center mb-4 border-b border-white/20 pb-3">
                 <h3 className="text-xl font-bold text-yellow-300">
-                  {actionModal.isEdit ? '修改活動內容' : '新增活動內容'}
+                  {actionModal.isEdit ? '修改內容' : '新增內容'}
                 </h3>
                 <button onClick={() => setActionModal(null)} className="text-white/50 hover:text-white"><X className="w-6 h-6" /></button>
               </div>
@@ -285,12 +329,12 @@ export default function AnnualCalendar() {
                 value={actionModal.text} 
                 onChange={(e) => setActionModal({...actionModal, text: e.target.value})} 
                 className="chalk-input w-full min-h-[120px] resize-none bg-white text-black font-bold p-3 rounded mb-4" 
-                placeholder="請輸入活動內容 (可換行輸入多行內容)..." 
+                placeholder="請輸入內容 (可換行輸入多行內容)..." 
                 autoFocus
               />
               <div className="flex justify-between gap-3">
                 {actionModal.isEdit ? (
-                  <button onClick={deleteModalContent} className="chalk-btn bg-red-600/80 text-white hover:bg-red-500 font-bold px-6">刪除活動</button>
+                  <button onClick={deleteModalContent} className="chalk-btn bg-red-600/80 text-white hover:bg-red-500 font-bold px-6">刪除</button>
                 ) : (
                   <div />
                 )}
@@ -412,6 +456,7 @@ export default function AnnualCalendar() {
                                  setActionModal({ 
                                    isOpen: true, 
                                    isEdit: false, 
+                                   fieldType: 'events',
                                    group: group, 
                                    text: '', 
                                    hasDate: true, 
@@ -428,13 +473,21 @@ export default function AnnualCalendar() {
                         })}
 
                         {isFirstInGroup && (
-                          <td rowSpan={group.weeks.length} className="p-2 border-r-2 border-black/80 bg-white/50 align-top h-full relative">
-                            {/* "Add Event" button anchored at the top right of the cell */}
-                            <div className="absolute top-2 right-2 z-10">
+                          <td rowSpan={group.weeks.length} className="p-2 border-r-2 border-black/80 bg-white/50 align-top h-full relative group/td">
+                            <div className="absolute top-2 right-2 z-10 flex gap-1">
+                              <button 
+                                onClick={() => sortBlocksByDate(group)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2 py-1 rounded flex items-center gap-1 text-xs shadow transition-colors"
+                                title="依日期排序活動"
+                              >
+                                <ArrowUpDown className="w-3 h-3" />
+                                排序
+                              </button>
                               <button 
                                 onClick={() => setActionModal({
                                   isOpen: true,
                                   isEdit: false,
+                                  fieldType: 'events',
                                   group: group,
                                   text: '',
                                   hasDate: false,
@@ -443,24 +496,41 @@ export default function AnnualCalendar() {
                                   dateD: '01'
                                 })}
                                 className="bg-stone-700 hover:bg-stone-800 text-white font-bold px-2 py-1 rounded flex items-center gap-1 text-xs shadow transition-colors"
-                                title="在此月份新增行事曆"
+                                title="在此月份新增活動"
                               >
                                 <Plus className="w-3 h-3" />
-                                新增活動
+                                新增
                               </button>
                             </div>
 
                             <div className="flex flex-col h-full min-h-[120px] gap-2 pt-8">
                               <div className="flex-1 flex flex-col gap-2">
                                 {getBlocks(week.events).map((blockText, blockIndex) => {
-                                  // Assign a distinct color to each block sequentially
                                   const colorClass = blockColors[blockIndex % blockColors.length];
+                                  
+                                  // Parse Date and Day of Week
+                                  let dateBadge = null;
+                                  let contentText = blockText;
+                                  const match = blockText.match(/^(\d{3,4})\/(\d{2})\/(\d{2}):\s*(.*)/s);
+                                  if (match) {
+                                    const [_, y, m, d, rest] = match;
+                                    const dateObj = new Date(parseInt(y) + 1911, parseInt(m) - 1, parseInt(d));
+                                    const dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][dateObj.getDay()];
+                                    dateBadge = (
+                                      <div className="bg-stone-800 text-yellow-300 px-2 py-0.5 rounded text-sm mb-1 inline-block shadow-sm">
+                                        {`${y}/${m}/${d} (星期${dayOfWeek})`}
+                                      </div>
+                                    );
+                                    contentText = rest;
+                                  }
+
                                   return (
                                     <div 
                                       key={blockIndex} 
                                       onClick={() => setActionModal({
                                         isOpen: true,
                                         isEdit: true,
+                                        fieldType: 'events',
                                         group: group,
                                         blockIndex: blockIndex,
                                         text: blockText,
@@ -469,10 +539,11 @@ export default function AnnualCalendar() {
                                         dateM: '01',
                                         dateD: '01'
                                       })}
-                                      className={`${colorClass} border-2 text-stone-800 px-2.5 py-2 rounded shadow-sm text-[15px] font-bold cursor-pointer transition-transform hover:-translate-y-0.5 whitespace-pre-wrap leading-relaxed`}
+                                      className={`${colorClass} border-2 text-stone-800 px-2.5 py-2 rounded shadow-sm text-[15px] font-bold cursor-pointer transition-transform hover:-translate-y-0.5 leading-relaxed`}
                                       title="點擊修改或刪除活動"
                                     >
-                                      {blockText}
+                                      {dateBadge}
+                                      <div className="whitespace-pre-wrap">{contentText}</div>
                                     </div>
                                   );
                                 })}
@@ -480,21 +551,99 @@ export default function AnnualCalendar() {
                             </div>
                           </td>
                         )}
-                        <td className="p-2 border-r-2 border-black/80 bg-white/50 align-top">
-                          <textarea 
-                            value={week.theme}
-                            onChange={(e) => handleWeekChange(idx, 'theme', e.target.value)}
-                            className="w-full bg-transparent rounded p-2 text-stone-800 outline-none focus:bg-white resize-none min-h-[80px] h-full custom-scrollbar text-[15px] font-medium transition-colors"
-                            placeholder="輸入主題..."
-                          />
+                        <td className="p-2 border-r-2 border-black/80 bg-white/50 align-top relative">
+                            <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => setActionModal({
+                                  isOpen: true,
+                                  isEdit: false,
+                                  fieldType: 'theme',
+                                  weekIdx: idx,
+                                  text: '',
+                                  hasDate: false,
+                                  dateY: globalYear,
+                                  dateM: '01',
+                                  dateD: '01'
+                                })}
+                                className="bg-stone-700 hover:bg-stone-800 text-white font-bold p-1 rounded shadow transition-colors"
+                                title="新增主題"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <div className="flex flex-col h-full min-h-[80px] gap-2 pt-6">
+                              {getBlocks(week.theme).map((blockText, blockIndex) => {
+                                const colorClass = blockColors[(blockIndex + 2) % blockColors.length]; // Offset color for variety
+                                return (
+                                  <div 
+                                    key={blockIndex} 
+                                    onClick={() => setActionModal({
+                                      isOpen: true,
+                                      isEdit: true,
+                                      fieldType: 'theme',
+                                      weekIdx: idx,
+                                      blockIndex: blockIndex,
+                                      text: blockText,
+                                      hasDate: false,
+                                      dateY: globalYear,
+                                      dateM: '01',
+                                      dateD: '01'
+                                    })}
+                                    className={`${colorClass} border-2 text-stone-800 px-2 py-1.5 rounded shadow-sm text-sm font-bold cursor-pointer transition-transform hover:-translate-y-0.5 whitespace-pre-wrap leading-relaxed`}
+                                    title="點擊修改或刪除"
+                                  >
+                                    {blockText}
+                                  </div>
+                                );
+                              })}
+                            </div>
                         </td>
-                        <td className="p-2 bg-white/50 align-top">
-                          <textarea 
-                            value={week.objectives || ''}
-                            onChange={(e) => handleWeekChange(idx, 'objectives', e.target.value)}
-                            className="w-full bg-transparent rounded p-2 text-stone-800 outline-none focus:bg-white resize-none min-h-[80px] h-full custom-scrollbar text-[15px] font-medium transition-colors"
-                            placeholder="輸入課程目標..."
-                          />
+                        <td className="p-2 bg-white/50 align-top relative">
+                            <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => setActionModal({
+                                  isOpen: true,
+                                  isEdit: false,
+                                  fieldType: 'objectives',
+                                  weekIdx: idx,
+                                  text: '',
+                                  hasDate: false,
+                                  dateY: globalYear,
+                                  dateM: '01',
+                                  dateD: '01'
+                                })}
+                                className="bg-stone-700 hover:bg-stone-800 text-white font-bold p-1 rounded shadow transition-colors"
+                                title="新增課程目標"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <div className="flex flex-col h-full min-h-[80px] gap-2 pt-6">
+                              {getBlocks(week.objectives || '').map((blockText, blockIndex) => {
+                                const colorClass = blockColors[(blockIndex + 4) % blockColors.length]; // Offset color for variety
+                                return (
+                                  <div 
+                                    key={blockIndex} 
+                                    onClick={() => setActionModal({
+                                      isOpen: true,
+                                      isEdit: true,
+                                      fieldType: 'objectives',
+                                      weekIdx: idx,
+                                      blockIndex: blockIndex,
+                                      text: blockText,
+                                      hasDate: false,
+                                      dateY: globalYear,
+                                      dateM: '01',
+                                      dateD: '01'
+                                    })}
+                                    className={`${colorClass} border-2 text-stone-800 px-2 py-1.5 rounded shadow-sm text-sm font-bold cursor-pointer transition-transform hover:-translate-y-0.5 whitespace-pre-wrap leading-relaxed`}
+                                    title="點擊修改或刪除"
+                                  >
+                                    {blockText}
+                                  </div>
+                                );
+                              })}
+                            </div>
                         </td>
                       </motion.tr>
                     );
