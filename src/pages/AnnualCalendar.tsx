@@ -35,6 +35,7 @@ export default function AnnualCalendar() {
   const [weeks, setWeeks] = useState<WeekData[]>(Array(21).fill({ theme: '', events: '', objectives: '', days: Array(7).fill('') }));
   const [loading, setLoading] = useState(true);
   const [alertMessage, setAlertMessage] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
   
   // Learning Indicators state
   const [indicators, setIndicators] = useState<any[]>([]);
@@ -294,6 +295,17 @@ export default function AnnualCalendar() {
         onConfirm={() => setAlertMessage('')}
         onCancel={() => setAlertMessage('')}
       />
+      <ConfirmModal 
+        isOpen={confirmDelete}
+        type="confirm"
+        title="確認刪除"
+        message="確定要刪除這筆內容嗎？此動作無法復原。"
+        onConfirm={() => {
+          setConfirmDelete(false);
+          deleteModalContent();
+        }}
+        onCancel={() => setConfirmDelete(false)}
+      />
 
       {/* Unified Action Modal */}
       <AnimatePresence>
@@ -447,7 +459,7 @@ export default function AnnualCalendar() {
               />
               <div className="flex justify-between gap-3">
                 {actionModal.isEdit ? (
-                  <button onClick={deleteModalContent} className="chalk-btn bg-red-600/80 text-white hover:bg-red-500 font-bold px-6">刪除</button>
+                  <button onClick={() => setConfirmDelete(true)} className="chalk-btn bg-red-600/80 text-white hover:bg-red-500 font-bold px-6">刪除</button>
                 ) : (
                   <div />
                 )}
