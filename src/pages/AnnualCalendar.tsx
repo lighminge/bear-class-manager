@@ -43,6 +43,7 @@ export default function AnnualCalendar() {
     fieldType: 'events' | 'theme' | 'objectives';
     group?: any; // Only needed for 'events'
     weekIdx?: number; // Only needed for 'theme' and 'objectives'
+    toWeekIdx?: number; // Used for multi-week theme application
     blockIndex?: number;
     text: string;
     hasDate: boolean;
@@ -583,6 +584,7 @@ export default function AnnualCalendar() {
                                   isEdit: false,
                                   fieldType: 'theme',
                                   weekIdx: idx,
+                                  toWeekIdx: idx,
                                   text: '',
                                   hasDate: false,
                                   dateY: globalYear,
