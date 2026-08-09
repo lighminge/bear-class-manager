@@ -284,6 +284,24 @@ export default function AnnualCalendar() {
                 <button onClick={() => setActionModal(null)} className="text-white/50 hover:text-white"><X className="w-6 h-6" /></button>
               </div>
 
+              {actionModal.fieldType === 'theme' && !actionModal.isEdit && (
+                <div className="mb-4 bg-black/20 p-3 rounded-lg border border-white/10 flex items-center gap-3 text-white font-bold">
+                  <span>套用到週次：</span>
+                  <span>第 {actionModal.weekIdx !== undefined ? actionModal.weekIdx + 1 : 1} 週</span>
+                  <span>~</span>
+                  <select 
+                    value={actionModal.toWeekIdx !== undefined ? actionModal.toWeekIdx : actionModal.weekIdx}
+                    onChange={(e) => setActionModal({...actionModal, toWeekIdx: parseInt(e.target.value)})}
+                    className="bg-white text-black font-bold px-2 py-1 rounded outline-none"
+                  >
+                    {weeks.map((_, i) => {
+                      if (i < (actionModal.weekIdx || 0)) return null;
+                      return <option key={i} value={i}>第 {i + 1} 週</option>;
+                    })}
+                  </select>
+                </div>
+              )}
+
               {actionModal.fieldType === 'events' && (
                 <div className="mb-4 bg-black/20 p-3 rounded-lg border border-white/10">
                   <label className="flex items-center gap-2 text-white font-bold cursor-pointer mb-2">

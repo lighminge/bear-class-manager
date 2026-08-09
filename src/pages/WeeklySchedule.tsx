@@ -514,8 +514,8 @@ export default function WeeklySchedule() {
   };
 
   const getTeacherColor = (name: string) => {
-    if (name === displayLeadTeacher) return { bg: 'bg-purple-600 border-purple-400', text: 'text-purple-300' };
-    if (name === displayCoTeacher) return { bg: 'bg-blue-600 border-blue-400', text: 'text-blue-300' };
+    if (name === settings.leadTeacher) return { bg: 'bg-purple-600 border-purple-400', text: 'text-purple-300' };
+    if (name === settings.coTeacher) return { bg: 'bg-blue-600 border-blue-400', text: 'text-blue-300' };
     
     const preset = [
         { bg: 'bg-pink-600 border-pink-400', text: 'text-pink-300' },
