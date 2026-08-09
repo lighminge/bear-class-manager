@@ -577,8 +577,8 @@ export default function AnnualCalendar() {
                           let textClass = isWeekend ? 'text-red-600' : 'text-stone-700';
                           
                           if (hasEvent) {
-                            bgClass = 'bg-yellow-300 shadow-md';
-                            textClass = 'text-stone-900 font-black scale-110 transform transition-transform';
+                            bgClass = 'bg-yellow-300';
+                            textClass = 'text-stone-900 font-black';
                           }
                           
                           return (
