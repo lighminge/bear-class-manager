@@ -506,6 +506,20 @@ export default function WeeklySchedule() {
     document.body.removeChild(link);
   };
 
+  const getTeacherColor = (name: string) => {
+    if (name === displayLeadTeacher) return { bg: 'bg-purple-600 border-purple-400', text: 'text-purple-300' };
+    if (name === displayCoTeacher) return { bg: 'bg-blue-600 border-blue-400', text: 'text-blue-300' };
+    
+    const preset = [
+        { bg: 'bg-pink-600 border-pink-400', text: 'text-pink-300' },
+        { bg: 'bg-teal-600 border-teal-400', text: 'text-teal-300' },
+        { bg: 'bg-orange-600 border-orange-400', text: 'text-orange-300' }
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
+    return preset[hash % preset.length];
+  };
+
   const renderMiniMonthCalendar = () => {
     const current = new Date(currentDate);
     const y = current.getFullYear();
@@ -550,8 +564,7 @@ export default function WeeklySchedule() {
             const teacherLeave = leaves[dateStr];
             let classes = "rounded-md py-1.5 transition-colors cursor-pointer ";
             
-            if (teacherLeave === displayLeadTeacher) classes += "bg-purple-600 font-bold border border-purple-300 shadow-lg text-sm flex items-center justify-center text-white ";
-            else if (teacherLeave === displayCoTeacher) classes += "bg-blue-600 font-bold border border-blue-300 shadow-lg text-sm flex items-center justify-center text-white ";
+            if (teacherLeave) classes += `${getTeacherColor(teacherLeave).bg} font-bold shadow-lg text-sm flex items-center justify-center text-white `;
             else if (isWeekDay) classes += "bg-yellow-500/30 font-bold outline outline-2 outline-yellow-400 flex items-center justify-center hover:bg-yellow-500/50 text-white ";
             else if (isCurrentMonth) classes += "text-white/80 hover:bg-white/10 flex items-center justify-center ";
             else classes += "text-white/20 hover:bg-white/5 flex items-center justify-center ";

@@ -161,11 +161,28 @@ export default function AnnualCalendar() {
 
   const saveModalContent = () => {
     if (!actionModal) return;
-    const { isEdit, fieldType, group, weekIdx, blockIndex, text, hasDate, dateY, dateM, dateD } = actionModal;
+    const { isEdit, fieldType, group, weekIdx, toWeekIdx, blockIndex, text, hasDate, dateY, dateM, dateD } = actionModal;
     
     let finalContent = text.trim();
     if (hasDate && finalContent) {
       finalContent = `${dateY}/${dateM}/${dateD}: ${finalContent}`;
+    }
+
+    if (fieldType === 'theme' && !isEdit && weekIdx !== undefined) {
+      // Handle multi-week theme addition
+      const endIdx = (toWeekIdx !== undefined && toWeekIdx >= weekIdx) ? toWeekIdx : weekIdx;
+      const newWeeks = [...weeks];
+      for (let i = weekIdx; i <= endIdx; i++) {
+        const blocks = getBlocks(newWeeks[i].theme);
+        if (finalContent !== '') {
+          blocks.push(finalContent);
+        }
+        newWeeks[i] = { ...newWeeks[i], theme: blocks.join('\n\n---\n\n') };
+      }
+      setWeeks(newWeeks);
+      saveToDb(newWeeks);
+      setActionModal(null);
+      return;
     }
 
     let rawText = '';
