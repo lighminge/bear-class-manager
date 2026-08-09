@@ -566,20 +566,26 @@ export default function AnnualCalendar() {
 
                         {weekDates.map((dateObj, i) => {
                           const isWeekend = i >= 5;
-                          const bgClass = isWeekend ? 'bg-orange-50' : 'bg-teal-50';
-                          const textClass = isWeekend ? 'text-red-600' : 'text-stone-700';
+                          const yStr = String(dateObj.getFullYear() - 1911);
+                          const mStr = String(dateObj.getMonth() + 1).padStart(2, '0');
+                          const dStr = String(dateObj.getDate()).padStart(2, '0');
+                          
+                          const datePrefix = `${yStr}/${mStr}/${dStr}:`;
+                          const hasEvent = group.weeks[0].week.events.includes(datePrefix);
+
+                          let bgClass = isWeekend ? 'bg-orange-50' : 'bg-teal-50';
+                          let textClass = isWeekend ? 'text-red-600' : 'text-stone-700';
+                          
+                          if (hasEvent) {
+                            bgClass = 'bg-yellow-300 shadow-md';
+                            textClass = 'text-stone-900 font-black scale-110 transform transition-transform';
+                          }
                           
                           return (
                             <td 
                               key={i}
-                              className={`p-1 text-center font-bold border-r border-black/30 align-top pt-4 ${bgClass} ${textClass} hover:bg-yellow-200 cursor-pointer transition-colors`}
+                              className={`p-1 text-center font-bold border-r border-black/30 align-top pt-4 ${bgClass} ${textClass} hover:bg-yellow-400 cursor-pointer transition-colors relative`}
                               onClick={() => {
-                                 const yStr = String(dateObj.getFullYear() - 1911);
-                                 const mStr = String(dateObj.getMonth() + 1).padStart(2, '0');
-                                 const dStr = String(dateObj.getDate()).padStart(2, '0');
-                                 
-                                 const datePrefix = `${yStr}/${mStr}/${dStr}:`;
-                                 const hasEvent = group.weeks[0].week.events.includes(datePrefix);
                                  if (hasEvent) {
                                    setAlertMessage(`注意：${yStr}/${mStr}/${dStr} 已經有安排活動了！`);
                                  }
