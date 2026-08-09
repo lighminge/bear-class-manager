@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import { doc, onSnapshot, setDoc, collection } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Calendar, Loader2, X, Plus, ArrowUpDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,6 +35,12 @@ export default function AnnualCalendar() {
   const [weeks, setWeeks] = useState<WeekData[]>(Array(21).fill({ theme: '', events: '', objectives: '', days: Array(7).fill('') }));
   const [loading, setLoading] = useState(true);
   const [alertMessage, setAlertMessage] = useState('');
+  
+  // Learning Indicators state
+  const [indicators, setIndicators] = useState<any[]>([]);
+  const [indSelections, setIndSelections] = useState({
+    age: '', domain: '', ability: '', aspect: '', objective: ''
+  });
 
   // Unified Modal for Add / Edit
   const [actionModal, setActionModal] = useState<{
@@ -71,7 +77,13 @@ export default function AnnualCalendar() {
         if (data.academicYear) setGlobalYear(data.academicYear);
       }
     });
-    return () => unsub();
+    const unsubInd = onSnapshot(collection(db, 'bear_indicators'), (snap) => {
+      setIndicators(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => {
+      unsub();
+      unsubInd();
+    };
   }, []);
 
   useEffect(() => {
@@ -169,14 +181,28 @@ export default function AnnualCalendar() {
       finalContent = `${dateY}/${dateM}/${dateD}: ${finalContent}`;
     }
 
-    if (fieldType === 'theme' && !isEdit && weekIdx !== undefined) {
-      // Handle multi-week theme addition
+    if (fieldType === 'theme' && weekIdx !== undefined) {
+      // Handle multi-week theme addition and modification
       const endIdx = (toWeekIdx !== undefined && toWeekIdx >= weekIdx) ? toWeekIdx : weekIdx;
       const newWeeks = [...weeks];
       for (let i = weekIdx; i <= endIdx; i++) {
         const blocks = getBlocks(newWeeks[i].theme);
-        if (finalContent !== '') {
-          blocks.push(finalContent);
+        if (isEdit && blockIndex !== undefined) {
+          if (i === weekIdx) {
+            if (finalContent === '') blocks.splice(blockIndex, 1);
+            else blocks[blockIndex] = finalContent;
+          } else {
+            // For subsequent weeks in the range, we also replace the same blockIndex if it exists, or push if it doesn't
+            if (finalContent === '') {
+              if (blocks.length > blockIndex) blocks.splice(blockIndex, 1);
+            } else {
+              blocks[blockIndex] = finalContent;
+            }
+          }
+        } else {
+          if (finalContent !== '') {
+            blocks.push(finalContent);
+          }
         }
         newWeeks[i] = { ...newWeeks[i], theme: blocks.join('\n\n---\n\n') };
       }
@@ -189,8 +215,6 @@ export default function AnnualCalendar() {
     let rawText = '';
     if (fieldType === 'events') {
       rawText = group.weeks[0].week.events;
-    } else if (fieldType === 'theme') {
-      rawText = weeks[weekIdx!].theme;
     } else {
       rawText = weeks[weekIdx!].objectives || '';
     }
@@ -284,7 +308,7 @@ export default function AnnualCalendar() {
                 <button onClick={() => setActionModal(null)} className="text-white/50 hover:text-white"><X className="w-6 h-6" /></button>
               </div>
 
-              {actionModal.fieldType === 'theme' && !actionModal.isEdit && (
+              {actionModal.fieldType === 'theme' && (
                 <div className="mb-4 bg-black/20 p-3 rounded-lg border border-white/10 flex items-center gap-3 text-white font-bold">
                   <span>套用到週次：</span>
                   <span>第 {actionModal.weekIdx !== undefined ? actionModal.weekIdx + 1 : 1} 週</span>
@@ -347,6 +371,68 @@ export default function AnnualCalendar() {
                         ))}
                       </select>
                       <span className="text-white/80 font-bold">日</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {actionModal.fieldType === 'objectives' && (
+                <div className="mb-4 bg-black/20 p-3 rounded-lg border border-white/10 space-y-3">
+                  <div className="text-yellow-300 font-bold mb-2">新增幼兒園學習指標</div>
+                  <div className="flex flex-wrap gap-2">
+                    <select value={indSelections.age} onChange={e => setIndSelections({ age: e.target.value, domain: '', ability: '', aspect: '', objective: '' })} className="chalk-input text-black bg-white rounded p-1">
+                      <option value="">選擇年齡</option>
+                      <option value="age23">2-3 歲</option>
+                      <option value="age34">3-4 歲</option>
+                      <option value="age45">4-5 歲</option>
+                      <option value="age56">5-6 歲</option>
+                    </select>
+                    
+                    {indSelections.age && (
+                      <select value={indSelections.domain} onChange={e => setIndSelections({ ...indSelections, domain: e.target.value, ability: '', aspect: '', objective: '' })} className="chalk-input text-black bg-white rounded p-1">
+                        <option value="">選擇領域</option>
+                        {[...new Set(indicators.filter(i => i[indSelections.age]).map(i => i.domain))].filter(Boolean).map(d => <option key={d as string} value={d as string}>{d as string}</option>)}
+                      </select>
+                    )}
+                    
+                    {indSelections.domain && (
+                      <select value={indSelections.ability} onChange={e => setIndSelections({ ...indSelections, ability: e.target.value, aspect: '', objective: '' })} className="chalk-input text-black bg-white rounded p-1">
+                        <option value="">選擇能力</option>
+                        {[...new Set(indicators.filter(i => i[indSelections.age] && i.domain === indSelections.domain).map(i => i.ability))].filter(Boolean).map(a => <option key={a as string} value={a as string}>{a as string}</option>)}
+                      </select>
+                    )}
+                    
+                    {indSelections.ability && (
+                      <select value={indSelections.aspect} onChange={e => setIndSelections({ ...indSelections, aspect: e.target.value, objective: '' })} className="chalk-input text-black bg-white rounded p-1">
+                        <option value="">選擇面向</option>
+                        {[...new Set(indicators.filter(i => i[indSelections.age] && i.domain === indSelections.domain && i.ability === indSelections.ability).map(i => i.aspect))].filter(Boolean).map(a => <option key={a as string} value={a as string}>{a as string}</option>)}
+                      </select>
+                    )}
+                    
+                    {indSelections.aspect && (
+                      <select value={indSelections.objective} onChange={e => setIndSelections({ ...indSelections, objective: e.target.value })} className="chalk-input text-black bg-white rounded p-1 max-w-[200px]">
+                        <option value="">選擇課程目標</option>
+                        {[...new Set(indicators.filter(i => i[indSelections.age] && i.domain === indSelections.domain && i.ability === indSelections.ability && i.aspect === indSelections.aspect).map(i => i.objective))].filter(Boolean).map(o => <option key={o as string} value={o as string}>{o as string}</option>)}
+                      </select>
+                    )}
+                  </div>
+                  
+                  {indSelections.objective && (
+                    <div className="mt-2 text-right">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const targetInd = indicators.find(i => i[indSelections.age] && i.domain === indSelections.domain && i.ability === indSelections.ability && i.aspect === indSelections.aspect && i.objective === indSelections.objective);
+                          if (targetInd) {
+                            const currentText = actionModal.text;
+                            const newText = currentText ? `${currentText}\n${targetInd[indSelections.age]}` : targetInd[indSelections.age];
+                            setActionModal({ ...actionModal, text: newText });
+                          }
+                        }}
+                        className="chalk-btn py-1 px-3 bg-green-600/80 hover:bg-green-500 font-bold text-sm"
+                      >
+                        加入內容
+                      </button>
                     </div>
                   )}
                 </div>
