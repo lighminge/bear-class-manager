@@ -588,6 +588,28 @@ export default function AnnualCalendar() {
                               onClick={() => {
                                  if (hasEvent) {
                                    setAlertMessage(`注意：${yStr}/${mStr}/${dStr} 已經有安排活動了！`);
+                                   
+                                   const blocks = getBlocks(group.weeks[0].week.events);
+                                   const blockIndex = blocks.findIndex(b => b.startsWith(datePrefix));
+                                   
+                                   if (blockIndex !== -1) {
+                                     const match = blocks[blockIndex].match(/^(\d{3,4})\/(\d{2})\/(\d{2}):\s*(.*)/s);
+                                     const text = match ? match[4] : blocks[blockIndex];
+                                     
+                                     setActionModal({ 
+                                       isOpen: true, 
+                                       isEdit: true, 
+                                       fieldType: 'events',
+                                       group: group,
+                                       blockIndex: blockIndex,
+                                       text: text, 
+                                       hasDate: true, 
+                                       dateY: yStr, 
+                                       dateM: mStr, 
+                                       dateD: dStr 
+                                     });
+                                     return;
+                                   }
                                  }
 
                                  setActionModal({ 
